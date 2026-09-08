@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -247,3 +247,33 @@ Custom Design System. Zephyroute builds its own component library and visual lan
 - Container Fidelity (Core User Experience, Experience Principle #5) still applies inside a fully custom system: the token layer must let the embedded widget swap Zephyroute's own token values for a partner-appropriate theme (e.g. via scoped CSS custom properties at the widget's root) without forking components, so "custom design system" stays compatible with "feels native inside THORWallet."
 - The visual language explored in Visual Foundation (next major phase) inherits the trust-forward, dark, single-accent direction validated against XOXNO in UX Pattern Analysis, with Zephyroute's own specific palette and typography decided fresh there, not copied.
 - Token discipline as a hard gate, not a convention: no component ships with a hardcoded, non-token visual value (a raw color, a fixed border-radius, an off-token spacing value), enforced by lint rule or review checklist. This exists specifically because the Container Fidelity promise breaks silently the first time a value is hardcoded under time pressure, and by the time it surfaces (in a THORWallet demo, late), it's expensive to retrofit across every component already built.
+
+## Visual Design Foundation
+
+### Color System
+
+Signal Cyan confirmed as the single accent. Base palette: background `#0E1116`, surface `#171B22`, border `#262C35`, primary text `#EDEFF2`, muted text `#9AA3AE`, accent `#3FD6D0` with `#04211F` as the ink color for text placed on top of the accent (buttons, active badges).
+
+Semantic states stay separate from the accent, since decorative color and status color are not the same thing: warning uses a muted amber (`#E8A33D`), critical/error uses a muted red (`#E5484D`) for borders, icons, and large elements. Error and warning **text** specifically uses a lighter red (`#FF7A80`), since the base error red only clears WCAG AA contrast by a narrow margin, an unacceptable risk for exactly the messages the No silent failure criterion depends on. The "earning" success state deliberately reuses the accent itself rather than introducing a green, consistent with Calm over celebration, since a special success color would read as a game-like reward the emotional design principles already ruled out.
+
+### Typography System
+
+Three typefaces, each with one job, each with an explicit fallback stack so a blocked or slow font load degrades gracefully instead of looking broken:
+- **Fraunces** (display/headings), falling back to `Georgia, serif`: carries the "professional but approachable" balance the user asked for, a serif with warmth rather than a cold corporate sans.
+- **Public Sans** (body and UI text), falling back to `system-ui, -apple-system, "Segoe UI", sans-serif`: clean and efficient for microcopy, labels, and interface chrome, matching the "efficient" layout direction.
+- **IBM Plex Mono** (all numeric and verbatim data), falling back to `ui-monospace, "SFMono-Regular", monospace`: fees, amounts, countdowns, and transaction hashes always render in tabular monospace, reinforcing that this specific text is exact data, not editorialized copy.
+
+Base body size 15px/16px with a compact type scale, favoring density over generous whitespace, consistent with the efficient direction.
+
+### Spacing & Layout Foundation
+
+8px base spacing unit. Single narrow content column (roughly 480 to 560px max width) at all times, never a wide multi-column or dashboard layout, since the core flow (quote, sign, sign) is inherently linear. This single decision serves two needs at once: it keeps the standalone app dense and efficient, and it is already compatible with THORWallet's narrow embedded widget width without a separate responsive redesign.
+
+Density is not uniform: quote rows and step-tracker items stay compact and tight, but the Sign action, its countdown, and any warning or error state get extra spacing around them, since these are the highest-stakes moments in the flow and should never be visually crowded or easy to mis-tap.
+
+### Accessibility Considerations
+
+- WCAG AA contrast targets (4.5:1 for body text, 3:1 for large text and UI components) apply to every color pairing in this system, verified by relative-luminance calculation against the dark palette: Signal Cyan, muted text, and the accent-ink button text all clear these targets with comfortable margin. The base error red clears AA only narrowly, which is why error and warning text use the lighter `#FF7A80` variant instead.
+- State never relies on color alone: step-tracker progress, warnings, and errors always pair their color with a label or icon change, since color-only signaling fails for colorblind users and conflicts with the No silent failure acceptance criterion. This is not optional polish for the red/amber pair specifically, since protanopia and deuteranopia can render both as a similar brownish tone.
+- Any animated indicator (the step tracker's active-step pulse, the signature countdown) respects `prefers-reduced-motion`, falling back to a static state with no loss of information.
+- Countdown and other critical text stay legible at the smaller width the THORWallet embed imposes, not only at the standalone app's own viewport.
