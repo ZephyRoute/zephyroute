@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -84,6 +84,44 @@ Web, multi-container: standalone app plus an embedded widget inside partner apps
 3. One flow, two depths, with the fork (trustline) designed explicitly, not hidden.
 4. State lives on-chain, not in a session.
 5. Container fidelity: inside a partner's widget (THORWallet), the experience should feel native to that app, not like an iframe bolted on top; the partner's brand and visual rhythm take priority over Zephyroute's own identity in that context.
+
+### User Mental Model
+
+**Anchor phrase:** the interaction users will describe to a friend is "I connected my wallet from Ethereum, signed twice, and I was already earning yield on Stellar." This reinforces the defining experience established above: the two-signature threshold is the product's core simplicity claim, not an implementation detail.
+
+**Priya (returning Stellar user, UJ-1):**
+- Existing mental model: a manual, multi-app process (bridge on one site, wait, switch tabs, deposit on another site).
+- Expectation for Zephyroute: that same process collapsed into a single continuous flow, not something conceptually new.
+- Confusion risk: if the flow ever asks her to leave the page or open a new tab, it breaks the exact expectation that brought her here.
+
+**Marcus (new to Stellar, UJ-2):**
+- No prior mental model of Stellar, bridging, or trustlines.
+- Closest usable anchor: a savings account (deposit, watch it grow, withdraw), not an exchange (which implies trading and price risk that does not apply here).
+- Confusion risk: the two required signatures do not fit a savings-account model and must be explained explicitly at the moment they happen, not left implicit.
+
+### Success Criteria
+
+- **Priya:** the end-to-end flow feels faster than doing it herself across two separate apps, her own personal benchmark.
+- **Marcus:** zero moments where he has to leave the flow to look something up externally (no need to understand trustlines or reserves to finish).
+- **Universal:** the fact that the entire journey required exactly two signatures is reinforced explicitly at completion ("2 signatures. Done."), as a concrete, countable proof point, not just an implied feeling.
+
+### Novel UX Patterns
+
+- The interaction shape (connect wallet, quote, sign, wait, sign, done) uses an established DeFi bridge-and-deposit pattern, validated against XOXNO's own bridge flow in the UX Pattern Analysis below. No new interaction paradigm is introduced.
+- The genuine novelty is the backend combination this UI represents (NEAR Intents settlement triggering a DeFindex deposit automatically), not the interaction shape itself. This matches the "Show, don't abstract" experience principle above: the interface should feel reassuringly ordinary while the value delivered underneath is what's new.
+- Familiarity is treated as a trust asset here, not a compromise, since trust is established below as the primary emotional goal for this product.
+
+### Experience Mechanics
+
+**1. Initiation:** triggered automatically the instant Horizon confirms funds have landed in the user's account. No manual "check status" action required.
+
+**2. Interaction:** a single primary "Sign" action with the deposit XDR already fully formed (default vault, slippage-protected minimum amount already applied), its destination, exact amount, and minimum guaranteed balance rendered visibly on screen before signing, so review happens where the user can see it, not only inside the XDR. The user is not asked to choose a vault or adjust the amount at this exact moment; any such choice happens earlier, at quote time, so this moment stays as fast as possible. Two exceptions are handled explicitly rather than silently: an expired signature window triggers an automatic re-quote instead of submitting a stale transaction, and a wallet disconnection mid-signature shows a clear reconnect state instead of assuming the signature went through.
+
+**3. Feedback:** the visible countdown carries over from the settlement wait, plus the wallet's native signing confirmation. After signing, the flow moves through two distinct, visibly labeled states, never collapsed into one: "submitted" (broadcast accepted, transaction hash available) and "confirming on-chain" (awaiting ledger finality). A transaction reference (hash, linked to a Horizon explorer view) is shown starting at "submitted," giving the user independently verifiable proof rather than asking them to trust the interface. If the user reloads the page or returns later while a transaction is pending, the flow reconstructs the correct state by re-querying Horizon and the DeFindex vault directly, rather than relying on in-memory state that would be lost on reload.
+
+**4. Completion:** completion is not the signature itself, it is the dfToken balance actually updating to reflect "earning," as already established in Critical Success Moments above. The "confirming on-chain" state defined above covers the honest gap between signing and completion, so it is never treated as instantaneous. If the deposit reverts on-chain (for example, slippage exceeded), this is surfaced explicitly with a clear next step, never left as a silent dead end.
+
+State names above (submitted, confirming on-chain, completed, failed) are precise internal labels for this specification. User-facing copy always translates them into plain language for a first-time user (for example, "sent," "almost there," "done"), consistent with the novice-proof trust pattern from Desired Emotional Response below; the technical label and transaction hash stay one tap away for anyone who wants to verify directly. The "confirming on-chain" wait is normally a few seconds, matching Stellar's ledger close time; if it runs longer than that, the same proactive delay-disclosure pattern already defined for the settlement wait applies here too, surfacing "this is taking longer than usual" rather than leaving the state silent.
 
 ## Desired Emotional Response
 
