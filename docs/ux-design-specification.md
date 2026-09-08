@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -277,3 +277,29 @@ Density is not uniform: quote rows and step-tracker items stay compact and tight
 - State never relies on color alone: step-tracker progress, warnings, and errors always pair their color with a label or icon change, since color-only signaling fails for colorblind users and conflicts with the No silent failure acceptance criterion. This is not optional polish for the red/amber pair specifically, since protanopia and deuteranopia can render both as a similar brownish tone.
 - Any animated indicator (the step tracker's active-step pulse, the signature countdown) respects `prefers-reduced-motion`, falling back to a static state with no loss of information.
 - Countdown and other critical text stay legible at the smaller width the THORWallet embed imposes, not only at the standalone app's own viewport.
+
+## Design Direction Decision
+
+### Design Directions Explored
+
+Six structural variations were explored against the same locked visual foundation (Signal Cyan, Fraunces, Public Sans, IBM Plex Mono, dark palette) and the same real content (trust badge, verbatim quote, settlement step tracker, deposit-signing action): Linear Card Stack (dense, undivided), Segmented Steps (bordered per-phase panels), Status-First (persistent progress rail), Data-Forward (hero number, built for Priya), Narrative (plain-language sentences, built for Marcus), and Minimal Chrome (no borders, typography-only separation). A background-treatment comparison (flat, soft glow, two-tone mesh, vivid) was also explored and resolved in favor of keeping the flat, calm background already established in Visual Design Foundation, rather than introducing a more colorful or attention-seeking treatment.
+
+### Chosen Direction
+
+Direction G, Guided Status, a synthesis rather than any single direction taken as-is: Status-First's persistent progress rail for continuous visibility, a compressed plain-language line that already carries the verbatim send, receive, and ETA figures (rather than Narrative's full paragraph), a secondary fee row, and a "See full quote" progressive disclosure for anyone who wants the complete verbatim breakdown. The background stays the flat, calm dark surface, not the more vivid treatment considered and set aside.
+
+The plain-language line itself has two depths, not one: a full sentence for a first-time user (UJ-2), and a condensed, numbers-first version for a returning user (UJ-1) who already knows the shape of this screen. This reuses the same trustline-fork signal that already distinguishes these two paths elsewhere in the flow, so it adds no new detection logic, only a second copy variant for content already being fetched.
+
+### Design Rationale
+
+- The persistent status rail directly serves two already-committed emotional design principles: Trust is continuous, not a peak moment, and Control replaces anxiety during every wait through visibility.
+- Leading with a plain-language sentence, rather than terse label rows, satisfies the Desired Emotional Response commitment that "the primary surface leads with plain-language translation for a first-time user like Marcus," while embedding the real numbers directly in that sentence keeps it from ever hiding or paraphrasing verbatim data (FR-1).
+- The sentence is compressed to one line, not Narrative's full paragraph, because Fast path preserved for returning users explicitly rules out slowing Priya's quote-sign-sign flow with scaffolding built for a first-time user. Even at one line, a User Persona Focus Group surfaced that Priya would rather see only the numbers, which is why the line itself now has two depths (full sentence for UJ-2, numbers-first for UJ-1), extending the "One flow, two depths" experience principle to this specific piece of copy rather than treating it as one-size-fits-all.
+- This two-depth line adds no new technical scope: it reuses the trustline-fork detection already established as a first-class moment in Core User Experience, confirmed feasible by an Expert Panel Review against the project's aggressive weeks-scale timeline.
+- The step-tracker rail's labels (Quoted, Settled, Earning) are intentionally not explained further for a first-time user, since a focus group reaction confirmed the rail functions as a glanceable progress cue, not literal text meant to be read and understood label by label.
+- The "See full quote" disclosure reuses the FAQ-accordion pattern already adopted in UX Pattern Analysis (serves the curious, invisible to the confident) rather than inventing a new interaction.
+- The flat background was kept, rather than the more colorful treatment considered, because a more attention-seeking surface would compete with Calm over celebration and with the "one consistent accent, reserved for what matters" rule already established for this design system.
+
+### Implementation Approach
+
+The status rail, quote data, step tracker, and sign action all fall inside the bespoke component scope already prioritized in Design System Foundation (trust-badge component, timestamped step tracker, signature-window countdown). The compressed plain-language line and the "See full quote" disclosure are new, small additions to that same scope, not a new category of component. The background stays a single solid token (no gradient token added to the system), keeping the token model from Design System Foundation unchanged.
