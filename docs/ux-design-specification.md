@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -380,3 +380,63 @@ flowchart TD
 - Error recovery is uniform: the signature window expiring is never treated as a different kind of failure depending on journey.
 - The one deliberate delight moment stays singular across all three journeys.
 - No failure in any journey resolves silently: a signature-window miss rebuilds, and a settlement failure refunds, both disclosed visibly, never a dead end the user has to guess their way out of.
+
+## Component Strategy
+
+### Design System Components
+
+Foundation components (Button, Dialog, Accordion/Disclosure, Toast, Tooltip) come from the headless behavioral primitives layer already chosen in Design System Foundation, styled with a thin visual skin using the tokens from Visual Design Foundation. These cover every generic interaction surface (the Sign button itself, the "See full quote" disclosure panel, any inline alert) without needing bespoke design work.
+
+### Custom Components
+
+**Trust Badge**
+- Purpose: communicate the non-custodial invariant at a glance, the single most important claim in the product, per the mechanism-backed trust pattern adopted from XOXNO.
+- Usage: appears at the top of every screen in the core flow, always visible, never dismissible.
+- Anatomy: a small accent-colored dot paired with one mechanism-backed sentence (for example, "Non-custodial. Funds go straight to your wallet.").
+- States: default only. It never changes appearance during a failure, since dramatizing this specific element would contradict Calm over celebration; failures are surfaced elsewhere.
+- Variants: none.
+- Accessibility: meaning never depends on the dot's color alone, the sentence always carries it; contrast already verified in Visual Design Foundation.
+- Content Guidelines: one sentence, mechanism-backed, no jargon.
+- Interaction Behavior: static, non-interactive, no tooltip, since deeper evidence already has its own path through "See full quote."
+
+**Custody Fund-Flow Diagram**
+- Purpose: visualize the non-custodial claim (user, solver, user's Stellar account, DeFindex vault) as a diagram, not just a sentence, per XOXNO's "visualizing custody, not just claiming it" pattern.
+- Usage: lives behind progressive disclosure (inside "See full quote" or a "How this works" panel), not on the primary Guided Status screen, since that screen stays dense and efficient by design.
+- Anatomy: a 3 to 4 node diagram with directional arrows.
+- States: static, purely explanatory; it does not duplicate the step tracker's job of showing live progress.
+- Variants: none.
+- Accessibility: ships with an accessible text-equivalent description alongside the visual diagram. The same text-equivalent description doubles as the rendering fallback if the diagram itself fails to load inside a constrained embed context, so a rendering failure degrades to readable text rather than a blank gap.
+- Content Guidelines: labels reuse the exact terms already established (You, Solver, Your Stellar Account, DeFindex Vault).
+- Interaction Behavior: static, viewed on demand only.
+
+**Timestamped Step Tracker**
+- Purpose: continuous visibility into flow progress, the mechanism behind Trust is continuous and Control replaces anxiety.
+- Usage: renders as the persistent rail chosen in the Design Direction Decision (Guided Status), reused identically across all three user journeys.
+- Anatomy: a horizontal segmented rail with short labels (Quoted, Settled, Earning), each step's completion timestamp sourced directly from the originating record (Horizon ledger close time, 1Click submission record, DeFindex vault state), never from the client's local clock, consistent with Independent auditability.
+- States: upcoming (dim), active (accent color, a pulsing indicator that respects prefers-reduced-motion), done (filled, timestamp on hover or tap), and failed (a distinct visual state for an expired signature window, a triggered refund, or an on-chain revert, using the accessible error-text color from Visual Design Foundation, never color alone).
+- Variants: none, the same component serves all three journeys per the Convergent navigation pattern from User Journey Flows.
+- Accessibility: the active step uses aria-current; every state pairs its color with a label or icon change.
+- Content Guidelines: step labels stay short and are intentionally not individually explained to a first-time user, confirmed sufficient by the User Persona Focus Group in the Design Direction Decision.
+- Interaction Behavior: automatic progression; tapping a completed step reveals its timestamp without cluttering the default view.
+
+**Signature-Window Countdown**
+- Purpose: the visible, honest urgency-without-panic mechanism from the Emotional Journey Mapping.
+- Usage: appears only during the deposit-signing moment, directly paired with the Sign action.
+- Anatomy: a tabular-mono countdown chip (mm:ss).
+- States: normal countdown, expiring soon, and expired-and-rebuilding, which transitions directly into the graceful automatic rebuild already defined in Core Experience Mechanics rather than any error state.
+- Variants: none.
+- Accessibility: the rebuild transition announces itself through an aria-live polite region, so a screen reader user is not left confused when the countdown suddenly resets; any pulsing in the expiring-soon state respects prefers-reduced-motion.
+- Content Guidelines: numeric only, exact time remaining, never editorialized.
+- Interaction Behavior: fully automatic, the user only observes it. The countdown derives its remaining time from the server-issued authorization window expiry, not from the client's local clock, and resyncs against that source periodically, so a device with a skewed clock never shows an incorrect amount of time remaining.
+
+### Component Implementation Strategy
+
+Only these four components are genuinely custom-built from scratch, matching the explicit scope boundary already committed to in Design System Foundation. The new interaction surfaces that emerged later, in the Design Direction Decision (the two-depth plain-language line, the "See full quote" disclosure) and in User Journey Flows (the refund-mechanism disclosure), are deliberately built as compositions of these four components plus the foundation layer, not treated as new bespoke components in their own right. This keeps the "custom design system compatible with an aggressive launch date" boundary intact instead of letting scope quietly grow every time a later step surfaces a new UI need.
+
+### Implementation Roadmap
+
+**Phase 1, Core Components:** Timestamped Step Tracker (rail variant), Signature-Window Countdown, and Trust Badge, since all three appear on the happy path of every one of the three user journeys and block a first end-to-end demo.
+
+**Phase 2, Supporting Components:** the failed state of the Step Tracker (expired window, refund, revert) and the refund-mechanism disclosure composition, required before launch under the No silent failure acceptance criterion but not needed for an initial happy-path demo.
+
+**Phase 3, Enhancement Components:** the Custody Fund-Flow Diagram and the polish pass on the returning-versus-new-user two-depth line, both refinements of an already-working flow rather than blocking dependencies.
