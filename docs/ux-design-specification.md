@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -440,3 +440,38 @@ Only these four components are genuinely custom-built from scratch, matching the
 **Phase 2, Supporting Components:** the failed state of the Step Tracker (expired window, refund, revert) and the refund-mechanism disclosure composition, required before launch under the No silent failure acceptance criterion but not needed for an initial happy-path demo.
 
 **Phase 3, Enhancement Components:** the Custody Fund-Flow Diagram and the polish pass on the returning-versus-new-user two-depth line, both refinements of an already-working flow rather than blocking dependencies.
+
+## UX Consistency Patterns
+
+### Button Hierarchy
+
+- **Primary:** exactly one primary action visible per screen at any time (Connect wallet, Sign swap, Sign deposit), filled with the accent color and accent-ink text from Visual Design Foundation. While waiting for the wallet extension to respond, the button shows a brief inline pending indicator rather than swapping its label entirely, so the user always sees that the tap registered, consistent with No silent failure.
+- **Secondary:** actions that verify without committing (See full quote, Reconnect wallet, view transaction hash), styled as underlined accent text, never with the same solid-fill weight as a primary action, so verifying and committing can never be visually confused.
+- **Tertiary:** purely informational links inside progressive disclosure (FAQ accordion entries), muted text color, no accent, since the accent stays reserved for what matters.
+
+### Feedback Patterns
+
+- **Success:** reuses the accent itself (Signal Cyan), never a separate green, extending the "earning" success-color decision from Visual Design Foundation into a general rule for any success feedback in the product, not only deposit completion.
+- **Error/Critical:** the lighter error-text red for text, the base error red reserved for borders and icons, always paired with a label or icon per the accessibility rule already established. A critical error never auto-dismisses like a typical toast, it stays visible until acknowledged or resolved, consistent with No silent failure.
+- **Warning:** amber, reserved for degraded-but-not-failed states (for example, the proactive "this is taking longer than usual" disclosure from UX Pattern Analysis), can be transient since it is informational, not a required action.
+- **Info:** muted text color, no accent, for informational content such as the verbatim breakdown inside "See full quote."
+- **Placement:** feedback always attaches to the specific element it concerns (inline beside the Sign button, inside the step tracker for a failed step), never a generic global toast stack, since Guided Status is built around continuous, localized visibility, not an overlay competing for attention.
+
+### Form Patterns
+
+- The only real input in the critical path is the origin amount and asset at the quote step. Validation is inline and immediate, an insufficient balance or a below-minimum amount appears next to the input the moment it is known, never surfaced only after a submit attempt.
+- No multi-step forms and no fields beyond the amount, since the destination vault and asset are already resolved by the flow itself, consistent with Effortless Interactions.
+- No password or credential field exists anywhere in the product. This is stated here as an explicit pattern rule, not just an implementation detail, since it is a product-level guarantee tied directly to the non-custodial invariant.
+
+### Navigation Patterns
+
+- Fully linear, no persistent navigation chrome (no tab bar, no sidebar), consistent with the single narrow content column from Visual Design Foundation.
+- No back action once the origin-chain swap has been signed and settlement is underway, since "going back" mid-transaction would be meaningless and dangerous to imply as possible. Before signing, a "start over" affordance is available.
+- Inside the THORWallet embed, the gateway suppresses even its own minimal header chrome, deferring entirely to the partner's navigation shell, per Container Fidelity.
+- A resumed session (UJ-3) drops the user directly onto the deposit step, never back at the quote screen, since re-quoting a settlement that already happened is not a meaningful action.
+
+### Additional Patterns
+
+- **Empty state:** before any journey has started, the entry screen shows only the origin amount input and the Trust Badge, no dashboard and no history list, consistent with the product's intentionally narrow v1 scope.
+- **Loading states:** no generic spinner exists anywhere in the critical path. Every wait already has a named, honest state from Core Experience Mechanics and the Step Tracker; a bare spinner would be a regression against decisions already made.
+- **Overlay pattern:** "See full quote" and the Custody Fund-Flow Diagram are inline expansions, never modal dialogs, since a modal would interrupt the single continuous surface Guided Status is built around. The only legitimate use for a true modal in this product is a destructive or irreversible confirmation, which does not exist here, since signing itself already is the confirmation.
