@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -303,3 +303,80 @@ The plain-language line itself has two depths, not one: a full sentence for a fi
 ### Implementation Approach
 
 The status rail, quote data, step tracker, and sign action all fall inside the bespoke component scope already prioritized in Design System Foundation (trust-badge component, timestamped step tracker, signature-window countdown). The compressed plain-language line and the "See full quote" disclosure are new, small additions to that same scope, not a new category of component. The background stays a single solid token (no gradient token added to the system), keeping the token model from Design System Foundation unchanged.
+
+## User Journey Flows
+
+### UJ-1: Priya swaps from inside THORWallet
+
+```mermaid
+flowchart TD
+    A[Opens Earn on Stellar corridor in THORWallet] --> B[Requests quote: Arbitrum USDC to Stellar USDC]
+    B --> C[Reviews verbatim quote: fee, ETA, minimum received]
+    C --> D[Signs origin-chain swap]
+    D --> E[Settlement wait, about 40s, live status shown]
+    E --> E2{Settlement completes normally?}
+    E2 -->|Yes| F[Horizon detects funds landed in her Stellar account]
+    E2 -->|Route fails or degrades beyond recovery| E3[Refund mechanism triggers, visibly disclosed, funds returned to origin]
+    F --> G[Guided Status screen appears automatically, compressed numbers-first line]
+    G --> H{Signs deposit within signature window?}
+    H -->|Yes, in time| I[dfToken balance updates, position earning]
+    H -->|Window expires| J[Fresh unsigned deposit XDR rebuilds automatically, swap never repeated]
+    J --> H
+    I --> K[Position visible in-app, volume recorded against integrator ID]
+```
+
+### UJ-2: Marcus onboards from Ethereum via the standalone app
+
+```mermaid
+flowchart TD
+    A[Opens standalone gateway web app] --> B[Connects Ethereum wallet]
+    B --> C[Requests quote: Ethereum USDC to Stellar USDC]
+    C --> D{Embedded wallet can auto-create, fund, and trustline a new Stellar account}
+    D -->|Confirmed by launch| E[Embedded wallet creates account in-flow, trustline fork shown explicitly]
+    D -->|Not confirmed| F[Documented manual pre-step: fund a minimal account first]
+    E --> G[Signs origin-chain swap]
+    F --> G
+    G --> H[Settlement wait, actively reassuring live status, highest-anxiety point for a first-timer]
+    H --> H2{Settlement completes normally?}
+    H2 -->|Yes| I[Horizon detects funds landed]
+    H2 -->|Route fails or degrades beyond recovery| H3[Refund mechanism triggers, visibly disclosed, funds returned to origin]
+    I --> J[Guided Status screen appears, full plain-language sentence]
+    J --> K{Signs deposit within signature window?}
+    K -->|Yes, in time| L[dfToken balance updates, first Stellar address funded and earning]
+    K -->|Window expires| M[Fresh unsigned deposit XDR rebuilds automatically]
+    M --> K
+    L --> N[Counted as newly-funded unique address]
+```
+
+### UJ-3: A user returns days later to finish an unsigned deposit
+
+```mermaid
+flowchart TD
+    A[Swap settled, funds in own Stellar account] --> B[User closes browser before signing deposit]
+    B --> C[Time passes, hours or days, funds never left the user's control]
+    C --> D[User returns from any device, any wallet]
+    D --> E[Connects the same Stellar address]
+    E --> F[Gateway queries Horizon and DeFindex directly, not a local cache]
+    F --> G{Undeposited balance detected?}
+    G -->|Yes| H[Resumes exactly at the deposit step, Guided Status screen appears]
+    G -->|No, already deposited| I[Shows current earning position, nothing to resume]
+    H --> J{Signs deposit within signature window?}
+    J -->|Yes| K[Completes deposit days later, zero funds ever left their control]
+    J -->|Window expires| L[Fresh unsigned deposit XDR rebuilds automatically]
+    L --> J
+```
+
+### Journey Patterns
+
+- Convergent navigation: the three journeys enter differently but all converge on the exact same Guided Status screen the instant settlement is detected, regardless of entry point.
+- A single decision pattern: the only genuine branch points are the onboarding fork (UJ-2 only) and the signature-window expiry-and-rebuild.
+- State reconstructed, never cached: UJ-3 depends directly on Independent auditability since resuming requires querying Horizon and DeFindex live.
+- Two uniform failure patterns, not one: signature-window expiry always rebuilds automatically, and swap/settlement failure always triggers the visible refund mechanism already committed to in Desired Emotional Response. UJ-3 correctly excludes the second pattern, since its scope only begins after settlement has already succeeded.
+
+### Flow Optimization Principles
+
+- Minimizing steps to value happens by convergence onto the same Guided Status screen across all three journeys.
+- Cognitive load is only genuinely added at the UJ-2 onboarding fork, and it stays visible and explicit there.
+- Error recovery is uniform: the signature window expiring is never treated as a different kind of failure depending on journey.
+- The one deliberate delight moment stays singular across all three journeys.
+- No failure in any journey resolves silently: a signature-window miss rebuilds, and a settlement failure refunds, both disclosed visibly, never a dead end the user has to guess their way out of.
