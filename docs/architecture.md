@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3]
+stepsCompleted: [1, 2, 3, 4]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -107,3 +107,79 @@ Hot reload, zero-config TypeScript, App Router's file-based routing and layouts.
 **Note:** The correlation layer, the one piece of persisted state Rule #9 allows, is built as Next.js API routes, deployed automatically as isolated serverless functions on Vercel rather than a separate service. Its actual persistence choice is a Step 4 decision, not a starter decision.
 
 **Note:** Project initialization using this command should be the first implementation story.
+
+## Core Architectural Decisions
+
+### Decision Priority Analysis
+
+**Critical Decisions (Block Implementation):** persistence choice for the correlation layer, the wallet-based session model, the error-handling contract (operationalizes AC #5).
+
+**Important Decisions (Shape Architecture):** state management approach, rate limiting, CI/CD gate enforcement (already promised in the UX spec), an interim monitoring foundation.
+
+**Deferred Decisions (Post-MVP, with rationale):** the full threat model and monitoring plan PRD Open Question 10 requires for SCF tranche #2. It deserves its own dedicated pass, not a rushed subsection here; this step only commits to an interim monitoring baseline, not the full deliverable.
+
+### Data Architecture
+
+Persistence for the correlation layer: Upstash Redis, via Vercel's native Marketplace integration. Verified live: Vercel's own KV product was sunset in December 2024, every existing and new setup now routes through Upstash Redis directly, not the deprecated `@vercel/kv` package. A key-value store fits the actual shape of this data exactly (Stellar address to 1Click settlement reference, DeFindex deposit reference, status, timestamps), and reusing the same instance for rate limiting avoids standing up a second piece of infrastructure.
+
+Data modeling: one record type, keyed by Stellar address, holding just enough to answer "is this address's swap settled, and has it deposited yet," the exact question UJ-3 resumability depends on. This stays a convenience cache per Rule #9: if the record were lost entirely, the correct state remains reconstructable from Horizon and DeFindex directly, just slower.
+
+Data validation: every field written here must already be validated against AC #3 before it's persisted.
+
+Migration approach: minimal, a schema-version field from day one covers record-shape changes later.
+
+Caching strategy: no durable caching of quote data, quotes are time-sensitive and always fetched live. Caching stays limited to short-lived client-side UI state for the active session, never a source of truth.
+
+Fallback requirement, not an assumption: if Upstash Redis is unavailable, correlation-layer routes fall back to querying Horizon and DeFindex directly rather than failing. This is an explicit architectural commitment, not an implied consequence of Rule #9, since a convenience-cache principle that isn't actually wired into the failure path is exactly the kind of gap that surfaces silently in production under the No silent failure criterion.
+
+### Authentication & Security
+
+No traditional authentication system exists. Identity is the connected wallet address itself, consistent with the non-custodial invariant and the UX spec's Form Patterns rule.
+
+Session model: reconnecting a wallet is the "login." No server-issued session token is needed beyond basic request correlation, since Horizon and DeFindex remain the actual source of truth for a given address's state.
+
+Security middleware: rate limiting on the correlation-layer API routes via `@upstash/ratelimit`, reusing the same Redis instance chosen above.
+
+Secrets: 1Click and DeFindex API keys live in Vercel environment variables only, scoped separately per environment, never committed to the repo.
+
+API security for the iframe embed: the `/embed` route's CSP and frame-related headers need explicit configuration, not the framework default.
+
+Read authorization for the correlation layer: reading another address's status is not an open lookup. A correlation-layer GET endpoint only returns data for an address that has proven ownership via a signed nonce in that request, closing an enumeration and privacy gap that would otherwise exist even though individual addresses are already public via Horizon.
+
+### API & Communication Patterns
+
+Internal API design: plain REST-style JSON endpoints over Next.js route handlers, no GraphQL.
+
+Error handling standard: every API route returns a consistent error envelope (`{ error: { code, message } }`), and the frontend treats a failed response as something to surface, never something to catch and discard silently.
+
+Communication with 1Click and DeFindex: their own official SDKs, wrapped in a thin validation layer per AC #3.
+
+Rate limiting applies specifically to the correlation-layer routes, not to server-to-server calls toward 1Click/DeFindex.
+
+### Frontend Architecture
+
+State management: TanStack Query v5, not a global client-state library. Its polling/refetch model is a natural fit for the Timestamped Step Tracker and the settlement-detection component.
+
+Component architecture: `components/ui/` for thin skins over headless primitives, `components/features/` for the 4 bespoke components already specified in Component Strategy.
+
+Routing: App Router file-based routing; the standalone app and the `/embed` widget route share the same component layer.
+
+Performance and bundle optimization: `/embed` gets its own tighter bundle-size budget than the standalone app.
+
+### Infrastructure & Deployment
+
+Hosting: Vercel, git-integrated deploys, automatic preview deployments per pull request.
+
+CI/CD: GitHub Actions enforcing the hard gates already promised in the UX spec: contrast and ARIA linting as a merge-blocking check, TypeScript strict-mode compilation, and the transaction-building test suite required by AC #7, all required to pass before merge, not advisory.
+
+Environment configuration: separate environment variable sets for preview and production in Vercel, holding the 1Click/DeFindex keys per AC #2; no `.env` file ever committed.
+
+Monitoring and logging: PRD Open Question 10 remains genuinely unresolved and is not resolved here. What this step commits to: a lightweight uptime/error-tracking tool wired in from day one so upstream degradation is detected proactively, satisfying the Upstream availability transparency NFR even before the full threat model exists.
+
+Scaling: automatic via Vercel's serverless function model.
+
+### Decision Impact Analysis
+
+**Implementation Sequence:** starter init then environment/secrets setup then the correlation-layer Upstash Redis instance and its API routes then the settlement-detection/polling component then the four bespoke UI components then the `/embed` route and its CSP/WalletConnect configuration last.
+
+**Cross-Component Dependencies:** the correlation layer's Redis instance is shared infrastructure for two purposes; the `/embed` route's viability is gated on the Step 3 CSP/WalletConnect finding being verified with THORWallet, itself gated on PRD Open Question 7; the monitoring decision here is interim, not a substitute for the full threat model PRD Open Question 10 still requires.
