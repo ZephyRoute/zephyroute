@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -475,3 +475,36 @@ Only these four components are genuinely custom-built from scratch, matching the
 - **Empty state:** before any journey has started, the entry screen shows only the origin amount input and the Trust Badge, no dashboard and no history list, consistent with the product's intentionally narrow v1 scope.
 - **Loading states:** no generic spinner exists anywhere in the critical path. Every wait already has a named, honest state from Core Experience Mechanics and the Step Tracker; a bare spinner would be a regression against decisions already made.
 - **Overlay pattern:** "See full quote" and the Custody Fund-Flow Diagram are inline expansions, never modal dialogs, since a modal would interrupt the single continuous surface Guided Status is built around. The only legitimate use for a true modal in this product is a destructive or irreversible confirmation, which does not exist here, since signing itself already is the confirmation.
+
+## Responsive Design & Accessibility
+
+### Responsive Strategy
+
+Mobile-first, not just mobile-friendly, per the confirmed assumption that the standalone app must work fully on mobile web, since the embeddable widget will plausibly run inside a partner's mobile app. Desktop does not get extra columns or extra chrome: the single narrow content column (480 to 560px max width) from Visual Design Foundation is the permanent layout, not a mobile compromise, since the flow is inherently linear. On desktop, that column simply sits centered with the flat background filling the rest, never stretched wide. Tablet uses the exact same narrow column, centered, with no distinct tablet-specific arrangement needed since the column's shape never changes.
+
+The THORWallet embed is not treated as a device category, it is a distinct container context that already gets its own token-swapping strategy from Container Fidelity, and its realistic width sits at or below the mobile breakpoint, so mobile-first design already covers the embed's real constraints by default.
+
+### Breakpoint Strategy
+
+No breakpoints trigger a genuinely different layout, since the single-column shape never restructures. Only the container's max-width and padding scale fluidly across small (up to about 480px), medium (480 to 768px), and large (768px and above) viewports, using relative units rather than fixed-pixel breakpoints. One concrete open detail remains for implementation: below roughly 360px, the narrowest realistic embed width, a minimum padding floor needs to be set explicitly so touch targets never get crushed, not decided here in exact pixel terms.
+
+### Accessibility Strategy
+
+WCAG 2.1 Level AA is the target, the same baseline already used when computing contrast ratios in Visual Design Foundation, formalized here rather than newly decided. Because this product handles real financial transactions, AA is treated as a floor, not an aspiration: anywhere a choice already exceeds AA (the error-text red recomputed to clear AAA), that safety margin stays, since No silent failure means a missed critical message carries real risk.
+
+- Touch targets: minimum 44 by 44px for every interactive element (Sign button, See full quote link, step-tracker timestamp taps), a hard rule given the confirmed mobile-first, touch-primary usage.
+- Keyboard and screen reader support: every custom component already specifies its own accessibility behavior (aria-current on the active step, aria-live on the countdown rebuild, a text-equivalent for the fund-flow diagram); the umbrella rule here is that a keyboard-only user must complete the entire critical path (connect wallet, sign swap, sign deposit) without ever needing a mouse, since the surrounding custom UI must never break the native keyboard operability that wallet-extension dialogs already provide.
+- Reduced motion: already committed per component (the pulsing step-tracker dot, any countdown urgency treatment), restated here as a blanket product-wide rule rather than a per-component afterthought.
+- Enforcement, not convention: automated contrast and ARIA checks in CI are a hard merge gate, not an advisory warning, following the same Token discipline pattern already committed to in Design System Foundation.
+
+### Testing Strategy
+
+Given the aggressive weeks-scale timeline and small team, full assistive-technology testing across every device before launch is not realistic. The pragmatic floor: automated contrast and ARIA linting in CI (enforced as a merge gate, not advisory), one real keyboard-only pass through all three user journeys, and one real screen-reader pass (VoiceOver or NVDA) through the deposit-signing critical path specifically, owned by a named person on the team rather than left ambient, since that is the highest-stakes moment in the product. Real device testing prioritizes the actual distribution surfaces already committed to: a genuine mobile browser, not a resized desktop window. Since the THORWallet partnership itself is still unconfirmed (PRD Open Question 7), embed testing does not wait on that confirmation: a synthetic iframe at the target embed width stands in until the real partnership resolves. Colorblindness simulation targets the one pairing already flagged as risky in Visual Design Foundation, warning amber against error red.
+
+Any violation surfaced by this testing floor, an ARIA failure, a keyboard trap, a contrast regression, is a launch blocker, not a logged note for later. This closing rule matches the same hard-gate discipline the rest of this specification already commits to (Token discipline, the CI enforcement above), rather than letting the final testing pass be the one place convention quietly replaces enforcement.
+
+### Implementation Guidelines
+
+- Relative units throughout (rem for type and spacing, built from the 8px base unit already defined), no fixed pixel values baked into components.
+- Semantic HTML and native interactive elements (a real button, a real form input) before reaching for ARIA roles to patch a non-semantic element.
+- Focus indicators stay visible everywhere, never suppressed without a replacement, consistent with the accessible-by-default headless primitives layer already chosen in Design System Foundation.
