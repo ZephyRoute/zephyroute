@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5]
+stepsCompleted: [1, 2, 3, 4, 5, 6]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -254,3 +254,136 @@ export async function getCorrelation(address: string, signedNonce: string): Prom
 // Ad-hoc shape, no shared envelope, silent catch: forbidden.
 fetch(`/api/correlation/${address}`).then(r => r.json()).catch(() => null);
 ```
+
+## Project Structure & Boundaries
+
+### Complete Project Directory Structure
+
+```
+zephyroute/
+├── README.md
+├── package.json
+├── next.config.ts
+├── tsconfig.json
+├── .env.example
+├── .env.local
+├── .gitignore
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── docs/
+│   ├── prds/
+│   │   └── prd-stellar-intents-gateway-2026-08-25/
+│   │       ├── prd.md
+│   │       ├── addendum.md
+│   │       └── .decision-log.md
+│   ├── architecture.md
+│   └── ux-design-specification.md
+├── src/
+│   ├── app/
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   ├── embed/
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   └── api/
+│   │       └── correlation/
+│   │           └── [address]/
+│   │               └── route.ts
+│   ├── components/
+│   │   ├── ui/
+│   │   │   ├── Button.tsx
+│   │   │   ├── Disclosure.tsx
+│   │   │   └── Tooltip.tsx
+│   │   └── features/
+│   │       ├── TrustBadge.tsx
+│   │       ├── TrustBadge.test.tsx
+│   │       ├── CustodyFundFlowDiagram.tsx
+│   │       ├── StepTracker.tsx
+│   │       ├── StepTracker.test.tsx
+│   │       └── SignatureCountdown.tsx
+│   ├── lib/
+│   │   ├── types.ts
+│   │   ├── validation.ts
+│   │   ├── validation.test.ts
+│   │   ├── redis.ts
+│   │   ├── rate-limit.ts
+│   │   ├── auth-nonce.ts
+│   │   ├── one-click-client.ts
+│   │   ├── defindex-client.ts
+│   │   ├── defindex-client.test.ts
+│   │   ├── horizon.ts
+│   │   ├── wallet-kit.ts
+│   │   └── hooks/
+│   │       ├── useQuote.ts
+│   │       ├── useSettlementStatus.ts
+│   │       └── useCorrelation.ts
+│   └── middleware.ts
+└── public/
+    └── favicon.ico
+```
+
+No `prisma/` directory exists, since there is no relational database, Upstash Redis holds the one narrow correlation record (Rule #9). No separate root `tests/` directory exists either, since Step 5 already committed to co-located `*.test.ts` files, a second parallel test tree would directly contradict that pattern.
+
+### Architectural Boundaries
+
+**API Boundaries:**
+The only internal API surface is `src/app/api/correlation/[address]/route.ts`, reads gated by the signed-nonce ownership check from `lib/auth-nonce.ts` (Step 4). There is no other internal API; all other data comes directly from 1Click, DeFindex, and Horizon, called client-side or from React Server Components, never proxied through a Zephyroute-owned endpoint unless a response needs validation or persistence first.
+
+**Component Boundaries:**
+`components/ui/` never imports from `components/features/`, only the reverse; a bespoke component composes primitives, a primitive never depends on product-specific logic. `components/features/` components read their data exclusively through the `lib/hooks/` TanStack Query hooks, never call `fetch` or a client library directly, so data-fetching stays in one layer.
+
+**Service Boundaries:**
+`lib/one-click-client.ts`, `lib/defindex-client.ts`, and `lib/horizon.ts` are the only files that talk to an external network dependency directly; every other file goes through them, never re-implements a raw fetch to those three services independently.
+
+**Data Boundaries:**
+`lib/redis.ts` is the only file that opens a Redis connection; `lib/validation.ts` sits between every external response and anything that persists or displays it, per AC #3. Nothing writes to Redis without passing through validation first.
+
+Validation is structurally built in, not an optional caller step: the public functions in `one-click-client.ts` and `defindex-client.ts` call `validation.ts` internally before returning any transaction XDR or response data. Callers never receive unvalidated data to begin with.
+
+AC #4 (review before signing) is enforced at the type level, not just by convention: `lib/types.ts` defines a branded `ValidatedTransactionXDR` type that only `validation.ts` can produce, and `wallet-kit.ts`'s sign function only accepts that type. Passing an unvalidated XDR to the signer becomes a TypeScript compile error, matching the same enforcement discipline already established in Step 5.
+
+Refund-mechanism handling (the settlement-failure branch from User Journey Flows) lives inside `horizon.ts`, alongside settlement detection itself, since both watch the same polling loop; it is a documented responsibility of that file, not a separate module.
+
+### Requirements to Structure Mapping
+
+**Feature Mapping (FR categories, per Project Context Analysis):**
+- **Cross-Chain Acquisition (FR-1 to FR-4):** `lib/one-click-client.ts`, `lib/hooks/useQuote.ts`, `src/app/page.tsx`.
+- **Wallet & Signing Layer (FR-5 to FR-6):** `lib/wallet-kit.ts`.
+- **Yield Deposit (FR-7 to FR-9):** `lib/defindex-client.ts` and its required test, `lib/horizon.ts` for settlement detection and refund handling, `components/features/SignatureCountdown.tsx`.
+- **Traction Instrumentation (FR-10 to FR-11):** `src/app/api/correlation/[address]/route.ts`, `lib/redis.ts`, `lib/hooks/useCorrelation.ts`.
+- **Distribution Surface (FR-12 to FR-13):** `src/app/embed/`, `src/middleware.ts` for the CSP/frame-ancestors headers the Step 3 finding requires.
+
+**Cross-Cutting Concerns:**
+- **Non-custodial invariant (AC #1):** enforced by structure itself, no file in this tree ever holds or requests a private key; `lib/wallet-kit.ts` only ever hands off to the wallet extension for signing.
+- **No silent failure (AC #5):** `lib/types.ts`'s error envelope plus the Feedback Patterns from the UX spec, referenced from every `components/features/` component that can fail.
+
+### Integration Points
+
+**Internal Communication:**
+`components/features/` reads through `lib/hooks/`, which read through `lib/*-client.ts` and `lib/redis.ts`. No component talks to Redis, 1Click, or DeFindex directly.
+
+**External Integrations:**
+1Click (`lib/one-click-client.ts`), DeFindex (`lib/defindex-client.ts`), Horizon (`lib/horizon.ts`), Upstash Redis (`lib/redis.ts`), Stellar Wallets Kit and Freighter (`lib/wallet-kit.ts`).
+
+**Data Flow:**
+Quote request to 1Click, swap signed via `wallet-kit.ts`, settlement detected by `horizon.ts` polling through `useSettlementStatus.ts` (with the refund branch handled in the same file on failure), deposit XDR built, validated, and signed via `defindex-client.ts` and `wallet-kit.ts`, the correlation record written to Redis through the validated `correlation` API route, read back later (possibly from a different device, UJ-3) through the same route with signed-nonce proof of ownership.
+
+### File Organization Patterns
+
+**Configuration Files:** repo root only (`next.config.ts`, `tsconfig.json`, `.env.example`), per Step 5.
+
+**Source Organization:** `src/app/` for routes, `src/components/` split by the ui/features boundary, `src/lib/` for everything else, per Step 5.
+
+**Test Organization:** co-located `*.test.ts`/`*.test.tsx`, no separate test tree; AC #7 specifically requires tests on `lib/defindex-client.ts` and any XDR/quote-request builder.
+
+**Asset Organization:** `public/` for static files; no image-heavy asset pipeline exists given the flat, dark, single-accent visual system, the Custody Fund-Flow Diagram renders as inline SVG/Canvas from `components/features/`, not a static image asset.
+
+### Development Workflow Integration
+
+**Development Server Structure:** `next dev` (Turbopack) at the repo root, no separate services to run locally; Upstash Redis is a remote managed instance from day one, not a local container, since AC #9's fallback-to-Horizon requirement means local development can proceed even without Redis configured.
+
+**Build Process Structure:** `next build`, TypeScript strict-mode compilation as a build-blocking step (AC #6), no separate build step for `/embed`, it is one route inside the same build output.
+
+**Deployment Structure:** git push to `master` (or a PR) triggers Vercel's build and preview deploy automatically; `.github/workflows/ci.yml` runs the hard gates from Step 4 (contrast/ARIA lint, TS strict, AC #7 tests) as a required check before merge, independent of and prior to Vercel's own deploy.
