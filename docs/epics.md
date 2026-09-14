@@ -221,8 +221,6 @@ So that I never hit a confusing mid-flow rejection from 1Click.
 **When** the check completes
 **Then** I am routed into the onboarding path (Epic 2, FR6) rather than receiving an opaque API rejection
 
-**And** once Epic 2's stories are also complete, this fork is what makes all three mapped user journeys (UJ-1 returning user, UJ-2 new user, UJ-3 cross-device resumability, all specified in User Journey Flows) actually reachable end to end through the combination of Epic 1 and Epic 2 (UX-DR11)
-
 #### Story 1.8: Execute Settlement and Detect Arrival
 
 As a returning Stellar user,
@@ -242,6 +240,10 @@ So that I have confidence the cross-chain step actually worked before I'm asked 
 **Given** the route fails or degrades beyond recovery during settlement
 **When** this is detected
 **Then** the refund mechanism triggers and is visibly disclosed, with funds returned to origin, never a silent dead end (User Journey Flows, AC #5)
+
+**Given** settlement completes normally
+**When** the correlation record is written
+**Then** it captures the settled volume, origin chain/asset, my Stellar address, and timestamp, tied to the integrator ID, through `lib/validation.ts` before persisting to Redis, never persisted unvalidated (FR10 groundwork, AC #3), since this is the moment this data first becomes known
 
 #### Story 1.9: Build an Unsigned Deposit Transaction
 
@@ -297,6 +299,10 @@ So that I don't have to guess or check somewhere else.
 **When** this is detected
 **Then** it is surfaced explicitly with a clear next step, never left as a silent dead end (`DepositTransactionStatus: 'reverted'`)
 
+**Given** the deposit confirms on-chain
+**When** the correlation record already written in Story 1.8 is updated
+**Then** it now also captures the destination vault and deposit-confirmed status, through `lib/validation.ts` before persisting, completing the record FR10 requires (no personally identifying data, per NFR7)
+
 #### Story 1.12: Resume an Incomplete Deposit From Any Device
 
 As any user who settled funds but didn't finish depositing,
@@ -308,7 +314,7 @@ So that I never worry about losing my place or my funds.
 **Given** I previously settled a swap but never signed the deposit, and I return later from any device
 **When** I reconnect the same Stellar address
 **Then** I sign the fixed challenge string with my wallet (`zephyroute:correlation-read:{unixTimestamp}`) and the gateway verifies that signed-nonce proof before returning any status for that address, never an open lookup by address alone (Authentication & Security, closing the enumeration/privacy gap)
-**And** the gateway queries Horizon and DeFindex directly (with the correlation-layer record as a convenience lookup, falling back to direct queries if Redis is unavailable) to detect the undeposited balance (FR9, AC #9)
+**And** the gateway queries Horizon and DeFindex directly (with the correlation record already written in Story 1.8 as a convenience lookup, falling back to direct queries if Redis is unavailable or the record predates it) to detect the undeposited balance (FR9, AC #9)
 **And** I am resumed directly at the deposit-signing step, never asked to re-quote or re-sign the origin-chain swap
 
 **Given** the address already has a completed deposit
@@ -366,6 +372,8 @@ So that I still have a real path to using Zephyroute, even without the automated
 **Then** I see clear, step-by-step documented instructions for funding a minimal Stellar account and establishing the destination trustline myself, before the flow resumes at the quote step
 **And** this fallback never implies the gateway holds custody at any point in the manual process
 
+**Cross-epic note:** with Epic 2's stories complete, all three mapped user journeys (UJ-1 returning user, UJ-2 new user, UJ-3 cross-device resumability, User Journey Flows) become reachable end to end through the combination of Epic 1 and Epic 2 (UX-DR11). This is a consequence of both epics existing together, not a new capability either epic alone claims to deliver.
+
 ### Epic 3: Traction Evidence for SCF Reporting
 
 The project team can see cumulative attributable volume, net-new TVL, unique funded addresses, and recurrence rate, all independently reconstructable from public data, ready to back any SCF tranche claim. Kept independent of Epic 4 since the PRD requires this live from the first transaction (§7.1), while Epic 4's partnership is explicitly parallel and non-blocking (§7.2), and coupling them would tie a hard MVP requirement to an optional one.
@@ -374,19 +382,21 @@ The project team can see cumulative attributable volume, net-new TVL, unique fun
 
 ### Epic 3 Stories
 
-#### Story 3.1: Record Attributable Flow Data
+#### Story 3.1: Verify Attributable Flow Data Is Complete and Reconstructable
 
 As the project team,
-I want every completed flow recorded with settled volume, origin chain/asset, destination vault, address, and timestamp, tied to the integrator ID,
+I want confirmation that the correlation record already written incrementally by Stories 1.8 and 1.11 satisfies FR10 in full,
 So that traction is provable without relying on the gateway's own database as the source of truth.
+
+**Note:** the record is written as the underlying data becomes known during the flow itself (Story 1.8 for settlement data, Story 1.11 for deposit data), not created fresh here. This story's job is to verify completeness and independent reconstructability, not to introduce the first write.
 
 **Acceptance Criteria:**
 
 **Given** a flow completes (deposit confirmed, per Story 1.11)
-**When** the record is written
-**Then** it captures settled volume, origin chain/asset, destination vault, the user's Stellar address, and timestamp, tied to the integrator ID, through `lib/validation.ts` before persisting to Redis, never persisted unvalidated (FR10, AC #3)
-**And** no personally identifying data is captured (NFR7)
-**And** the record remains reconstructable independently from public sources (1Click's integrator-attributed records, Horizon, DeFindex vault state) if the Redis record were lost (AC #9)
+**When** the resulting correlation record is inspected
+**Then** it contains settled volume, origin chain/asset, destination vault, the user's Stellar address, and timestamp, tied to the integrator ID, with every field having passed through `lib/validation.ts` before it was persisted (FR10, AC #3)
+**And** no personally identifying data is present (NFR7)
+**And** the same record can be independently reconstructed from public sources alone (1Click's integrator-attributed records, Horizon, DeFindex vault state), verified by deliberately discarding the Redis record for a test flow and confirming the fallback query produces the same result (AC #9)
 
 #### Story 3.2: Expose Cumulative Traction Metrics
 
@@ -418,12 +428,17 @@ So that I can offer Stellar yield to my users without building my own DeFindex i
 
 **Acceptance Criteria:**
 
-**Given** the standalone app's flow (Epics 1 through 3) already works end to end
+**Given** the standalone app's flow (Epic 1, and Epic 2 or Epic 3 if already built) already works end to end
 **When** the `/embed` route is built
-**Then** it renders the same component layer (`components/features/`, `components/ui/`) as the standalone app, reusing every story from Epics 1 through 3 without a separate implementation (FR12)
+**Then** it renders the same component layer (`components/features/`, `components/ui/`) as the standalone app, reusing whichever stories already exist rather than a separate implementation (FR12)
 **And** the token layer lets the embedding partner override Zephyroute's own token values via scoped CSS custom properties at the widget's root, without forking components (Container Fidelity)
 **And** the `/embed` route carries its own tighter bundle-size budget than the standalone app, since it loads inside an already-loaded partner page
 **And** the widget builds and ships as part of v1 regardless of whether the THORWallet partnership itself is confirmed
+
+**Given** a flow originates inside the embedded widget rather than the standalone app
+**When** the quote request and the correlation record (Story 1.8) are attributed
+**Then** this story explicitly decides and documents which integrator ID is used (Zephyroute's own, the partner's, or a sub-attributed value), since this is flagged as unresolved in the Integration Coupling Map, not something to silently inherit from the standalone app's behavior
+**And** the same attribution is wired identically for widget-originated flows as for standalone-originated ones, so Epic 3's traction metrics remain accurate regardless of entry point
 
 #### Story 4.2: Configure Cross-Origin Wallet Connectivity for the Embed
 
