@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4, 5, 6, 7]
+stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -8,6 +8,9 @@ workflowType: 'architecture'
 project_name: 'stellar-intents-gateway'
 user_name: 'JafetCHVDev'
 date: '2026-08-25'
+lastStep: 8
+status: 'complete'
+completedAt: '2026-09-13'
 ---
 
 # Architecture Decision Document
