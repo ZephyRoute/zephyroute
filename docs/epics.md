@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1]
+stepsCompleted: [1, 2]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -76,8 +76,46 @@ UX-DR11: Implement all three user journey flows exactly as mapped (UJ-1 THORWall
 
 ### FR Coverage Map
 
-_To be completed once epics are designed._
+FR1: Epic 1, live cross-chain quote request and display.
+FR2: Epic 1, integrator ID attribution on every quote.
+FR3: Epic 1, trustline check that also decides whether Epic 2 is needed for this user.
+FR4: Epic 1, settlement execution and arrival detection.
+FR5: Epic 1, connect an existing Stellar wallet.
+FR6: Epic 2, brand-new-user onboarding.
+FR7: Epic 1, unsigned deposit transaction build.
+FR8: Epic 1, sign and submit within the authorization window.
+FR9: Epic 1, confirm and resume deposit state, including cross-device resumability.
+FR10: Epic 3, record attributable flow data.
+FR11: Epic 3, expose cumulative traction metrics.
+FR12: Epic 4, embeddable widget.
+FR13: Epic 1, standalone web app as the reference implementation.
+
+NFRs, Additional Requirements, and UX Design Requirements are not separate epics, per the "organize by user value, not technical layers" principle. Each is woven into the epic that first touches its relevant surface: Epic 1 (foundational) carries the starter template, the design token and typography system, all 4 bespoke components, CI/CD gates, `ValidatedTransactionXDR`, and NFR1-NFR8 from day one. Epic 3 is where the signed-nonce read-authorization protocol (scaffolded in Epic 1) is exercised end-to-end. Epic 4 is where the CSP/WalletConnect configuration from the Architecture Step 3 finding lives.
 
 ## Epic List
 
-_To be completed in the next step._
+### Epic 1: Returning User Signs In and Starts Earning Yield
+
+A returning Stellar user connects an already-funded wallet, gets a live cross-chain quote, executes the swap, and signs the DeFindex deposit, ending up earning yield on Stellar, resumable from any device if they step away mid-flow.
+
+**FRs covered:** FR1, FR2, FR3, FR4, FR5, FR7, FR8, FR9, FR13.
+
+**Story sequence guidance for Step 3:** foundation first (starter init, design tokens, CI/CD gates), then cross-chain acquisition (quote, trustline check, swap execution, settlement detection), then wallet connection, then the deposit flow (build, sign, countdown, confirm), then resumability last, since it depends on the deposit flow already existing to have something to resume.
+
+### Epic 2: New-to-Stellar User Onboards From Any Supported Chain
+
+A user with zero prior Stellar presence goes through the same flow as Epic 1, with the account-creation and trustline fork handled explicitly and visibly, reaching the same "earning yield" outcome.
+
+**FRs covered:** FR6.
+
+### Epic 3: Traction Evidence for SCF Reporting
+
+The project team can see cumulative attributable volume, net-new TVL, unique funded addresses, and recurrence rate, all independently reconstructable from public data, ready to back any SCF tranche claim. Kept independent of Epic 4 since the PRD requires this live from the first transaction (§7.1), while Epic 4's partnership is explicitly parallel and non-blocking (§7.2), and coupling them would tie a hard MVP requirement to an optional one.
+
+**FRs covered:** FR10, FR11.
+
+### Epic 4: Embedded Distribution Inside Partner Wallets
+
+A partner wallet like THORWallet embeds Zephyroute's flow directly as a swap corridor, without building its own DeFindex integration, feeling native inside their app.
+
+**FRs covered:** FR12.
