@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2, 3, 4]
+stepsCompleted: [1, 2, 3, 4, 5]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -183,3 +183,74 @@ Scaling: automatic via Vercel's serverless function model.
 **Implementation Sequence:** starter init then environment/secrets setup then the correlation-layer Upstash Redis instance and its API routes then the settlement-detection/polling component then the four bespoke UI components then the `/embed` route and its CSP/WalletConnect configuration last.
 
 **Cross-Component Dependencies:** the correlation layer's Redis instance is shared infrastructure for two purposes; the `/embed` route's viability is gated on the Step 3 CSP/WalletConnect finding being verified with THORWallet, itself gated on PRD Open Question 7; the monitoring decision here is interim, not a substitute for the full threat model PRD Open Question 10 still requires.
+
+## Implementation Patterns & Consistency Rules
+
+### Pattern Categories Defined
+
+**Critical Conflict Points Identified:** naming for the shared Redis instance's two uses, component/file naming drift against the UX spec's exact component names, status-string naming for the deposit/settlement flow, error-response shape consistency across every API route, and the exact location and enforcement mechanism of the shared types module.
+
+### Naming Patterns
+
+**Redis (Data) Naming Conventions:**
+`correlation:{stellarAddress}` for a correlation record, `ratelimit:{address}` for a rate-limit bucket.
+
+**API Naming Conventions:**
+Kebab-case route segments, camelCase parameters, upstream fields normalized at the AC #3 validation layer. API request/response types follow one naming convention: `{Verb}{Resource}Request` and `{Verb}{Resource}Response` (for example, `GetCorrelationResponse`), always defined in `lib/types.ts`, never redefined inline at the call site or the route handler.
+
+**Code Naming Conventions:**
+Components use the exact names already locked in Component Strategy, verbatim (`TrustBadge.tsx`, `CustodyFundFlowDiagram.tsx`, `StepTracker.tsx`, `SignatureCountdown.tsx`). Hooks, functions, and variables use camelCase throughout.
+
+### Structure Patterns
+
+Tests are co-located as `*.test.ts` next to the file they test. Components live under the `components/ui/` versus `components/features/` split from Step 4. Shared utilities, the validation layer, the correlation-layer client, and TanStack Query hooks all live under `lib/`. API routes follow App Router's `app/api/` convention, one route handler per concern.
+
+The shared canonical types module lives at exactly `lib/types.ts` (a single file, not a folder, given how small this surface is), inside the `lib/` directory already established as the one shared home for cross-cutting code. No agent creates a second types location.
+
+Pagination conventions are explicitly out of scope: the correlation-layer surface is a handful of single-resource endpoints, never a list/collection endpoint, so this is a deliberate non-issue, not an oversight.
+
+Config files stay at the repo root; `.env.example` is committed, `.env.local` stays git-ignored. `docs/` stays reserved for product documentation only.
+
+### Format Patterns
+
+API failures use `{ error: { code, message } }`. Success responses return data directly, no `{ data: ... }` wrapper. JSON fields are camelCase, dates are ISO 8601, booleans are real `true`/`false`, and a single item is never array-wrapped.
+
+### Communication Patterns
+
+There is no pub/sub event bus, settlement detection is a TanStack Query polling model. Deposit/settlement state names (submitted, confirming, completed, failed, expired, reverted) form one shared TypeScript union type, used verbatim everywhere. State management stays TanStack Query only, no global client-state store. Query keys follow a consistent array-tuple convention.
+
+### Process Patterns
+
+Every user-facing error maps to exactly one Feedback Pattern already defined in the UX spec (Error/Critical, Warning, Info). No scattered boolean `isLoading` flags; TanStack Query's `status`/`fetchStatus` is the single source of loading state, mapped onto the Step Tracker's already-defined states.
+
+### Enforcement Guidelines
+
+**All AI Agents MUST:**
+- Use the exact component names and status literals from the UX spec verbatim, never invent parallel naming.
+- Route every error through the shared envelope and the UX spec's Feedback Patterns, never construct an ad-hoc error UI.
+
+**Pattern Enforcement:**
+A shared `lib/types.ts` module exports the canonical status unions and the error envelope type, imported everywhere rather than redefined locally. The "TypeScript compile error" guarantee only holds in practice if every API route handler explicitly annotates its return type as the shared response type from `lib/types.ts`, rather than leaving it inferred, since TypeScript's structural typing will not catch two independently-shaped objects that happen to match today. Pattern violations surface as PR review comments referencing this section.
+
+### Pattern Examples
+
+**Good Example:**
+```ts
+// lib/api/correlation.ts
+export async function getCorrelation(address: string, signedNonce: string): Promise<GetCorrelationResponse> {
+  const res = await fetch(`/api/correlation/${address}`, {
+    headers: { 'x-nonce-signature': signedNonce },
+  });
+  if (!res.ok) {
+    const { error } = await res.json();
+    throw new CorrelationError(error.code, error.message);
+  }
+  return res.json();
+}
+```
+
+**Anti-Pattern:**
+```ts
+// Ad-hoc shape, no shared envelope, silent catch: forbidden.
+fetch(`/api/correlation/${address}`).then(r => r.json()).catch(() => null);
+```
