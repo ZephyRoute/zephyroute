@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2]
+stepsCompleted: [1, 2, 3]
 inputDocuments:
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/prd.md
   - docs/prds/prd-stellar-intents-gateway-2026-08-25/addendum.md
@@ -56,3 +56,54 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - **The deposit XDR must be built reactively, not speculatively.** Settlement time varies from 60s (Ethereum/Arbitrum) to ~14 minutes (Bitcoin), while the Soroban authorization window is a fixed ~1–5 minutes measured from XDR construction. Building the deposit XDR ahead of confirmed settlement risks it expiring before the user can sign; this requires an active settlement-detection component (Horizon polling or equivalent) as a first-class piece of the architecture, not an implementation detail.
 - **The user's Stellar address is the hidden correlation key.** DeFindex's API has no integrator-ID concept, so net-new TVL (SM-2) can't be attributed from DeFindex's own records alone — it requires correlating the address that received funds via 1Click (which does carry the integrator ID) with that same address's later DeFindex deposits. This correlation step is likely the one piece of state that genuinely needs to persist somewhere, which tempers the "zero backend" framing from Rule #9 — the exception is narrow and specific, not a reopening of the custody question.
 - **Widget-context attribution is unresolved.** When the flow runs inside a partner's embed (e.g. THORWallet), which integrator ID gets sent to 1Click — Zephyroute's, the partner's, or a sub-attributed value — is not yet decided. This is a partnership/architecture decision, not just a product one, and it directly affects whether SM-1/SM-2 can be correctly attributed by traffic source.
+
+## Starter Template Evaluation
+
+### Primary Technology Domain
+
+Full-stack web with client-side blockchain SDK integration, per Scale & Complexity in Project Context Analysis, needing two distribution surfaces (standalone app, embeddable widget) and one minimal serverless correlation layer.
+
+### Starter Options Considered
+
+| Option | Trade-off | Decision |
+|---|---|---|
+| **Next.js (App Router)** | Full-stack, first-class Vercel deployment, API routes double as the correlation layer. | **Selected** |
+| **Vite plus a separate lightweight backend** | More manual wiring, two deploy targets instead of one, no clear benefit given how thin the actual backend need is (Rule #9). | Rejected |
+| **Remix** | A solid full-stack alternative, but the Next.js/Vercel pairing is more battle-tested for this exact app-plus-API-routes shape and has a larger ecosystem overlap with the wallet-kit and Soroban tooling this project depends on. | Rejected |
+
+### Selected Starter: Next.js 16 (App Router)
+
+**Rationale for Selection:**
+One framework serves all three needs at once (standalone app, embeddable widget route, correlation-layer API routes), consistent with the PRD's "thinnest possible layer" framing. Deployment on Vercel is zero-config and auto-scaling for exactly this shape, verified live rather than assumed.
+
+**Initialization Command:**
+
+```bash
+npx create-next-app@latest zephyroute --typescript --app --no-tailwind --src-dir --import-alias "@/*"
+```
+
+**Architectural Decisions Provided by Starter:**
+
+**Language & Runtime:**
+TypeScript, matching CLAUDE.md's AC #6 (strict mode) exactly, no gap to reconcile.
+
+**Styling Solution:**
+None imposed (Tailwind explicitly skipped), so the token-first CSS custom-properties system from Design System Foundation becomes the actual styling foundation from day one, not something to retrofit later.
+
+**Build Tooling:**
+Next.js's own build and dev toolchain (Turbopack in dev), zero extra configuration needed.
+
+**Testing Framework:**
+Not included by default, chosen in a later step, driven by AC #7's specific requirement for tests on transaction-building code.
+
+**Code Organization:**
+`src/` directory, App Router file-based routing. The embeddable widget lives as its own dedicated route (for example, `/embed`), rendered inside a partner's iframe, the standard and safest pattern for third-party embedding, which also gives the widget performance isolation from the partner's own app.
+
+**Development Experience:**
+Hot reload, zero-config TypeScript, App Router's file-based routing and layouts.
+
+**Consequences of the iframe-embedded widget pattern:** wallet-extension injection (Freighter) and WalletConnect's origin allowlist do not automatically work inside a third-party iframe without explicit configuration. Two technical prerequisites must be verified during partner integration, not assumed: (1) THORWallet's own CSP (`frame-ancestors`) must permit framing the Zephyroute embed origin, and (2) the exact serving origin of `/embed` must be added to the WalletConnect project's allowed-origins list, or wallet connection fails with an origin-not-allowed error. This is now a technical dependency of PRD Open Question 7 (THORWallet partnership), not just a business one, and should be verified before the widget route is built, not discovered during integration.
+
+**Note:** The correlation layer, the one piece of persisted state Rule #9 allows, is built as Next.js API routes, deployed automatically as isolated serverless functions on Vercel rather than a separate service. Its actual persistence choice is a Step 4 decision, not a starter decision.
+
+**Note:** Project initialization using this command should be the first implementation story.
