@@ -179,7 +179,7 @@ CI/CD: GitHub Actions enforcing the hard gates already promised in the UX spec: 
 
 Environment configuration: separate environment variable sets for preview and production in Vercel, holding the 1Click/DeFindex keys per AC #2; no `.env` file ever committed.
 
-Monitoring and logging: PRD Open Question 10 remains genuinely unresolved and is not resolved here. What this step commits to: a lightweight uptime/error-tracking tool wired in from day one so upstream degradation is detected proactively, satisfying the Upstream availability transparency NFR even before the full threat model exists.
+Monitoring and logging: PRD Open Question 10 is now resolved in `docs/threat-model.md`, a STRIDE threat model and monitoring plan built from the failure-mode table already gathered in `addendum.md` §C. It commits to a lightweight uptime/error-tracking tool wired in from day one, satisfying the Upstream availability transparency NFR, and connects the PRD's own SM-C1 counter-metric to an actual monitored, alertable signal for the first time.
 
 Scaling: automatic via Vercel's serverless function model.
 

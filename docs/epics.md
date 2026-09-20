@@ -119,6 +119,7 @@ So that every subsequent story builds on a consistent, correctly-configured foun
 **Then** the project uses TypeScript in strict mode (AC #6), the App Router, and no Tailwind dependency
 **And** the directory structure matches Project Structure & Boundaries exactly: `src/app/`, `src/components/ui/`, `src/components/features/`, `src/lib/` (including `src/lib/hooks/`), with no `prisma/` directory and no root `tests/` directory
 **And** a `.env.example` file is committed listing the required environment variable names (1Click and DeFindex API keys) with no real values, and `.env.local` is git-ignored
+**And** `src/middleware.ts` sets a `script-src` CSP directive restricting script execution to Zephyroute's own bundled code, no inline scripts, no third-party script origins beyond what is strictly needed (Threat Model, Tampering)
 
 #### Story 1.2: Design Token and Typography Foundation
 
@@ -150,7 +151,12 @@ So that accessibility and type-safety regressions never reach the deployed produ
 **Given** a pull request is opened against `master`
 **When** `.github/workflows/ci.yml` runs
 **Then** it blocks the merge on any WCAG contrast or ARIA linting failure, any TypeScript strict-mode compilation error, and any failing test in the AC #7-required transaction-building test suite (UX-DR10)
+**And** it also blocks the merge on any secret-scanning finding (for example a leaked API key), as a merge-blocking gate rather than a policy that relies on developer discipline alone (Threat Model, Information Disclosure)
 **And** the workflow runs independently of and prior to Vercel's own preview deployment, never gating on Vercel's build status
+
+**Given** any API route returns an error to the client
+**When** the error envelope is constructed
+**Then** it never includes the raw request payload, a full transaction XDR, or a server-side stack trace, only a safe code and message; detailed diagnostic information stays in the monitoring tool, never in the response body (Threat Model, Information Disclosure)
 
 #### Story 1.4: Connect an Existing Stellar Wallet
 
@@ -280,6 +286,10 @@ So that the short Soroban window never feels like a trap.
 **Given** my wallet disconnects mid-signature
 **When** this is detected
 **Then** an explicit reconnect state is shown, never assuming the signature succeeded or silently retrying
+
+**Given** my Stellar account does not hold enough XLM to cover the deposit transaction's network fee
+**When** this is detected before the signature prompt is shown
+**Then** I see a plain-language explanation of the shortfall, never a cryptic transaction-submission failure after I've already signed (PRD Open Question 12)
 
 #### Story 1.11: Confirm Deposit Success and Reflect Earning Status
 
@@ -413,6 +423,7 @@ So that I can report the same numbers to the SCF panel that the product itself s
 **Then** it displays cumulative attributable volume, net-new TVL, unique funded addresses, and 7/30-day recurrence rate (FR11)
 **And** these are the exact figures usable in any SCF tranche submission, never a separately maintained or rounded set of numbers
 **And** this view is a project-team-facing aggregate, distinct from the per-address signed-nonce lookup already built in Story 1.12, since it never exposes individual address-level data to an arbitrary caller
+**And** the route is protected by Vercel's own deployment protection (password or team-member-only access), not open to any anonymous visitor, since this was a real gap found in the Threat Model (Elevation of Privilege) rather than a new admin-auth system, consistent with Rule #9's minimal-infrastructure philosophy
 
 ### Epic 4: Embedded Distribution Inside Partner Wallets
 
@@ -453,8 +464,8 @@ So that being inside someone else's page never breaks the core flow.
 **Acceptance Criteria:**
 
 **Given** the `/embed` route is served from its own origin inside a partner's iframe
-**When** the partner's CSP (`frame-ancestors`) is configured to permit framing the Zephyroute embed origin
-**Then** the iframe loads without being blocked
+**When** Zephyroute's own `frame-ancestors` CSP directive is configured
+**Then** it explicitly allowlists confirmed partner origins by name (for example `https://thorwallet.io`), never a wildcard, so no arbitrary site can frame the widget and impersonate a legitimate partner (Threat Model, Spoofing)
 **And** the exact serving origin of `/embed` is added to the WalletConnect project's allowed-origins list, verified before this story is considered done, not assumed to work
 
 **Given** either prerequisite is not yet satisfied for a given partner
