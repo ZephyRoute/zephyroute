@@ -427,7 +427,7 @@ So that I can report the same numbers to the SCF panel that the product itself s
 
 ### Epic 4: Embedded Distribution Inside Partner Wallets
 
-A partner wallet like THORWallet embeds Zephyroute's flow directly as a swap corridor, without building its own DeFindex integration, feeling native inside their app.
+A partner wallet embeds Zephyroute's flow directly as a swap corridor, without building its own DeFindex integration, feeling native inside their app. THORWallet was the originally assumed target partner but is now deprioritized (decided 2026-09-20, `addendum.md` §A.4): they already shipped their own native NEAR Intents plus Blend loop into Stellar, so they no longer need a third-party corridor for that exact use case. The widget itself stays generic, built for any partner, not rewritten; the next candidate partner should specifically lack an existing native swap-to-Stellar-yield loop.
 
 **FRs covered:** FR12.
 
@@ -435,7 +435,7 @@ A partner wallet like THORWallet embeds Zephyroute's flow directly as a swap cor
 
 #### Story 4.1: Ship the Flow as an Embeddable Widget Route
 
-As a partner wallet like THORWallet,
+As a partner wallet without an existing native swap-to-Stellar-yield loop,
 I want to embed Zephyroute's flow as a swap corridor inside my own app,
 So that I can offer Stellar yield to my users without building my own DeFindex integration.
 
@@ -465,7 +465,7 @@ So that being inside someone else's page never breaks the core flow.
 
 **Given** the `/embed` route is served from its own origin inside a partner's iframe
 **When** Zephyroute's own `frame-ancestors` CSP directive is configured
-**Then** it explicitly allowlists confirmed partner origins by name (for example `https://thorwallet.io`), never a wildcard, so no arbitrary site can frame the widget and impersonate a legitimate partner (Threat Model, Spoofing)
+**Then** it explicitly allowlists confirmed partner origins by name (for example `https://<confirmed-partner-domain>`, whichever partner is actually pursued once THORWallet is deprioritized), never a wildcard, so no arbitrary site can frame the widget and impersonate a legitimate partner (Threat Model, Spoofing)
 **And** the exact serving origin of `/embed` is added to the WalletConnect project's allowed-origins list, verified before this story is considered done, not assumed to work
 
 **Given** either prerequisite is not yet satisfied for a given partner
