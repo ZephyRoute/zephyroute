@@ -42,7 +42,14 @@ Sources: Superform docs (docs.superform.xyz/e2e-flows/cross-chain-deposit), LI.F
 
 ### A.4 THORWallet detail
 
-Self-custody, multi-chain DeFi "superapp" wallet (iOS/Android/Web) built around native cross-chain swaps — no bridges, no wrapped tokens — for BTC, ETH, SOL, and 20,000+ tokens, built on/around THORChain's native liquidity model. Swaps under $100 are free. Also offers staking/yield, multisig vaults, and a Swiss account with a global Mastercard. ~165k wallet users, already using NEAR Intents (swap) and Blend (lending) separately per Phase 2 research — but **not independently confirmed in this pass whether Stellar is already a listed destination in THORWallet's routing**, or whether they're open to embedding a third-party corridor. Treat as a lead to validate directly, not a confirmed channel (PRD Open Question 7).
+Self-custody, multi-chain DeFi "superapp" wallet (iOS/Android/Web) built around native cross-chain swaps, no bridges, no wrapped tokens, for BTC, ETH, SOL, and 20,000+ tokens, built on/around THORChain's native liquidity model. Swaps under $100 are free. Also offers staking/yield, multisig vaults, and a Swiss account with a global Mastercard. ~165k wallet users.
+
+**[UPDATE, 2026-09-20, verified live]** THORWallet has already launched a native Stellar integration (announced November 2025): "swap into Stellar assets, access Blend lending, swap out across chains, all without leaving the app," using NEAR Intents for the cross-chain leg and Blend (not DeFindex) as the yield backend. This is materially different from the Phase 2 research's framing of THORWallet as an unconfirmed embed candidate: THORWallet did not wait for a third-party corridor, they built their own native version of essentially this product's core loop directly. No mention of DeFindex, open embeds, or third-party corridor arrangements was found in their own announcement.
+
+**What this changes, flagged for explicit product decision, not resolved here:**
+- PRD Open Question 7 ("is THORWallet's routing already able to add Stellar as a destination") is now answered: yes, and they did it without Zephyroute.
+- The FR12/Epic 4 embed pitch to THORWallet specifically ("integrate this gateway as a corridor without building their own DeFindex integration") is weakened for the swap-plus-yield use case, since they already built an in-house version, using Blend rather than DeFindex.
+- This does not necessarily kill the differentiation claim in §A.1 above (nobody fuses NEAR-Intents-into-Stellar specifically with DeFindex, as opposed to Blend, as one flow), but it is a materially closer competitor than the Phase 2 research assumed, and THORWallet itself may now be better read as a competitor for this exact use case than as a likely embed partner. Whether to keep pursuing THORWallet as a distribution partner, pivot the FR12 pitch toward a different partner, or reposition around the DeFindex-specific differentiation more explicitly, is a product decision for the user, not decided in this pass.
 
 ## §B. Custody / Regulatory Analysis (full table)
 
