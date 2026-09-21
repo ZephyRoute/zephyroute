@@ -6,17 +6,24 @@ import { TrustBadge } from '@/components/features/TrustBadge';
 import { QuoteDisplay } from '@/components/features/QuoteDisplay';
 import { useWallet } from '@/lib/hooks/useWallet';
 import { useQuote } from '@/lib/hooks/useQuote';
+import { useTrustlineCheck } from '@/lib/hooks/useTrustlineCheck';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 
 export default function Home() {
   const { address, status: walletStatus, errorMessage: walletError, connect } = useWallet();
   const { quote, status: quoteStatus, errorMessage: quoteError, requestQuoteFor } = useQuote();
+  const trustline = useTrustlineCheck();
   const [routeIndex, setRouteIndex] = useState(0);
   const [amount, setAmount] = useState('');
 
-  const handleRequestQuote = () => {
+  const handleRequestQuote = async () => {
     if (!address || !amount) return;
     const route = SUPPORTED_ROUTES[routeIndex];
+
+    // FR3: the trustline check runs before the quote request fires, not after.
+    const present = await trustline.check(address, route.stellarAsset);
+    if (!present) return;
+
     requestQuoteFor({
       originAsset: route.originAsset,
       destinationAsset: route.destinationAsset,
@@ -70,9 +77,27 @@ export default function Home() {
             placeholder="Amount in smallest units"
           />
 
-          <Button onClick={handleRequestQuote} disabled={quoteStatus === 'loading' || !amount}>
-            {quoteStatus === 'loading' ? 'Getting quote…' : 'Get quote'}
+          <Button
+            onClick={handleRequestQuote}
+            disabled={quoteStatus === 'loading' || trustline.status === 'checking' || !amount}
+          >
+            {trustline.status === 'checking'
+              ? 'Checking your account…'
+              : quoteStatus === 'loading'
+                ? 'Getting quote…'
+                : 'Get quote'}
           </Button>
+
+          {trustline.status === 'missing' && (
+            <p role="alert">
+              Your Stellar account doesn&apos;t hold the trustline for this destination asset
+              yet. Onboarding for new accounts isn&apos;t available in this build yet (Epic 2).
+            </p>
+          )}
+
+          {trustline.status === 'failed' && trustline.errorMessage && (
+            <p role="alert">{trustline.errorMessage}</p>
+          )}
 
           {(quoteStatus === 'rejected' || quoteStatus === 'failed') && quoteError && (
             <p role="alert">{quoteError}</p>
