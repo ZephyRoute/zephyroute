@@ -119,7 +119,7 @@ So that every subsequent story builds on a consistent, correctly-configured foun
 **Then** the project uses TypeScript in strict mode (AC #6), the App Router, and no Tailwind dependency
 **And** the directory structure matches Project Structure & Boundaries exactly: `src/app/`, `src/components/ui/`, `src/components/features/`, `src/lib/` (including `src/lib/hooks/`), with no `prisma/` directory and no root `tests/` directory
 **And** a `.env.example` file is committed listing the required environment variable names (1Click and DeFindex API keys) with no real values, and `.env.local` is git-ignored
-**And** `src/middleware.ts` sets a `script-src` CSP directive restricting script execution to Zephyroute's own bundled code, no inline scripts, no third-party script origins beyond what is strictly needed (Threat Model, Tampering)
+**And** `proxy.ts` (project root, not `src/`, per Next.js 16's rename of the middleware file convention) sets a `script-src` CSP directive restricting script execution to Zephyroute's own bundled code, no inline scripts, no third-party script origins beyond what is strictly needed (Threat Model, Tampering)
 
 #### Story 1.2: Design Token and Typography Foundation
 

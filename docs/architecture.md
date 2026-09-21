@@ -269,6 +269,7 @@ zephyroute/
 ├── README.md
 ├── package.json
 ├── next.config.ts
+├── proxy.ts
 ├── tsconfig.json
 ├── .env.example
 ├── .env.local
@@ -324,7 +325,6 @@ zephyroute/
 │   │       ├── useQuote.ts
 │   │       ├── useSettlementStatus.ts
 │   │       └── useCorrelation.ts
-│   └── middleware.ts
 └── public/
     └── favicon.ico
 ```
@@ -358,7 +358,7 @@ Refund-mechanism handling (the settlement-failure branch from User Journey Flows
 - **Wallet & Signing Layer (FR-5 to FR-6):** `lib/wallet-kit.ts`.
 - **Yield Deposit (FR-7 to FR-9):** `lib/defindex-client.ts` and its required test, `lib/horizon.ts` for settlement detection and refund handling, `components/features/SignatureCountdown.tsx`.
 - **Traction Instrumentation (FR-10 to FR-11):** `src/app/api/correlation/[address]/route.ts`, `lib/redis.ts`, `lib/hooks/useCorrelation.ts`.
-- **Distribution Surface (FR-12 to FR-13):** `src/app/embed/`, `src/middleware.ts` for the CSP/frame-ancestors headers the Step 3 finding requires.
+- **Distribution Surface (FR-12 to FR-13):** `src/app/embed/`, `proxy.ts` (project root, not `src/`, per Next.js 16's rename of the middleware convention, verified live during Story 1.1 implementation) for the CSP/frame-ancestors headers the Step 3 finding requires.
 
 **Cross-Cutting Concerns:**
 - **Non-custodial invariant (AC #1):** enforced by structure itself, no file in this tree ever holds or requests a private key; `lib/wallet-kit.ts` only ever hands off to the wallet extension for signing.
