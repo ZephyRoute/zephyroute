@@ -33,7 +33,7 @@ FR8: Sign and submit within the authorization window (visible countdown; automat
 FR9: Confirm and resume deposit state (reads back dfToken balance; resumable from any device, any later time, skipping FR1-FR4 on resume).
 FR10: Record attributable flow data (settled volume, origin chain/asset, destination vault, address, timestamp; reconstructable independently from public sources; no PII).
 FR11: Expose cumulative traction metrics (attributable volume, net-new TVL, unique funded addresses, recurrence rate; same figures used in any SCF submission).
-FR12: Ship as an embeddable widget (decoupled from partner confirmation; ships in v1 regardless of THORWallet partnership status).
+FR12: Ship as an embeddable widget (decoupled from partner confirmation; ships in v1 regardless of whether any specific embed partnership is confirmed).
 FR13: Standalone web app as reference implementation (100% of FR1-FR11 reachable without any partner integration).
 
 ### NonFunctional Requirements
@@ -58,7 +58,7 @@ NFR8: v1 infrastructure cost stays near-zero by design, no funds database, no cu
 - Secrets: 1Click and DeFindex API keys live in Vercel environment variables only, scoped separately per environment, never committed to the repo.
 - Monitoring: an interim lightweight uptime/error-tracking tool wired in from day one; the full threat model and monitoring plan (PRD Open Question 10) remains a separate, later deliverable required before SCF tranche #2.
 - Project structure: `components/ui/` (headless-primitive skins) vs. `components/features/` (4 bespoke components) split; all cross-cutting code under `lib/`; API routes limited to `app/api/correlation/[address]/route.ts`; tests co-located as `*.test.ts`, no separate test tree, no `prisma/` directory (no relational database).
-- Iframe-embedded widget (`/embed` route): requires explicit CSP (`frame-ancestors`) configuration on Zephyroute's side and, once the THORWallet partnership resolves, verification that THORWallet's own CSP permits framing the Zephyroute origin and that the origin is added to the WalletConnect project's allowed-origins list, or wallet connection fails.
+- Iframe-embedded widget (`/embed` route): requires explicit CSP (`frame-ancestors`) configuration on Zephyroute's side and, once an embed partnership is confirmed, verification that the partner's own CSP permits framing the Zephyroute origin and that the origin is added to the WalletConnect project's allowed-origins list, or wallet connection fails.
 - FR-3's trustline pre-check is implemented in `lib/horizon.ts`, called from the entry page before the quote request fires, and its result drives the UJ-1/UJ-2 fork.
 - No proprietary Soroban contract in v1 (Architecture A' only, per Rule #3 and CLAUDE.md AC #8).
 
@@ -74,7 +74,7 @@ UX-DR7: Implement the Guided Status screen composition: persistent rail plus a t
 UX-DR8: Implement the UX Consistency Patterns: button hierarchy (primary/secondary/tertiary), feedback patterns attached inline to their element (never a generic toast stack), no scattered boolean `isLoading` flags (TanStack Query status only), no modal dialogs except a genuinely destructive/irreversible confirmation (none exists in this product).
 UX-DR9: Implement the responsive strategy: a single narrow content column (480 to 560px max width) at every viewport size, mobile-first, no breakpoint ever triggers a structural layout change.
 UX-DR10: Implement accessibility as CI-blocking gates, not advisory: WCAG 2.1 AA contrast minimum (AAA specifically for error/warning text), 44x44px minimum touch targets, full keyboard-only completability of the critical path, and `prefers-reduced-motion` support on every animated indicator.
-UX-DR11: Implement all three user journey flows exactly as mapped (UJ-1 THORWallet embed with the compressed status line, UJ-2 standalone onboarding with the full status line and the trustline-driven fork, UJ-3 cross-device/cross-session resumability that skips directly to the deposit step), including the settlement-failure/refund branch and the signature-window-expiry rebuild in every journey.
+UX-DR11: Implement all three user journey flows exactly as mapped (UJ-1 partner embed with the compressed status line, UJ-2 standalone onboarding with the full status line and the trustline-driven fork, UJ-3 cross-device/cross-session resumability that skips directly to the deposit step), including the settlement-failure/refund branch and the signature-window-expiry rebuild in every journey.
 
 ### FR Coverage Map
 
@@ -447,7 +447,7 @@ So that I can offer Stellar yield to my users without building my own DeFindex i
 **Then** it renders the same component layer (`components/features/`, `components/ui/`) as the standalone app, reusing whichever stories already exist rather than a separate implementation (FR12)
 **And** the token layer lets the embedding partner override Zephyroute's own token values via scoped CSS custom properties at the widget's root, without forking components (Container Fidelity)
 **And** the `/embed` route carries its own tighter bundle-size budget than the standalone app, since it loads inside an already-loaded partner page
-**And** the widget builds and ships as part of v1 regardless of whether the THORWallet partnership itself is confirmed
+**And** the widget builds and ships as part of v1 regardless of whether any specific embed partnership is confirmed
 
 **Given** a flow originates inside the embedded widget rather than the standalone app
 **When** the quote request and the correlation record (Story 1.8) are attributed
@@ -460,7 +460,7 @@ As a user inside a partner's embedded widget,
 I want my wallet connection and signing to work exactly as it does in the standalone app,
 So that being inside someone else's page never breaks the core flow.
 
-**Note:** this story is gated on PRD Open Question 7's resolution (THORWallet partnership confirmation) for actual deployment, but the CSP and WalletConnect configuration work itself is not partner-specific and can be built and verified independently.
+**Note:** this story is gated on a future embed partner's confirmation for actual deployment (THORWallet, the original target, was deprioritized 2026-09-20 per PRD Open Question 7's resolution, so no partner is currently confirmed), but the CSP and WalletConnect configuration work itself is not partner-specific and can be built and verified independently.
 
 **Acceptance Criteria:**
 
