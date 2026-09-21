@@ -148,7 +148,7 @@ A third party (router/relayer/backend) can invoke the function — the tx invoke
 - Critical finding OS-DIX-ADV-00 (bRate manipulation): "Fixed in e69f390."
 - 3 HIGH findings (ADV-01/02/03): fix commits `385c939`, `645312f`, `5659d64`.
 - Of 16 total findings, all Critical/High/Medium have a documented patch commit.
-- **Residual unverified item** (PRD Open Question 4): whether those commits are actually included in the currently-deployed mainnet WASM — bytecode hash was not compared against commits; cheap, non-blocking verification still pending.
+- **[BYTECODE MATCH VERIFIED for sampled contracts, 2026-09-20]** (PRD Open Question 4): whether those commits are actually included in the currently-deployed mainnet WASM was checked live via Stellar Expert's public JSON API against DeFindex's own officially-published hashes. 3 mainnet contracts (Factory once, the Blend strategy contract at two addresses) matched exactly, zero discrepancies. The top-level `defindex_vault` contract itself was not distinctly isolated and checked, so this is strong evidence, not full exhaustive verification; see PRD Open Question 4's own entry for the complete picture.
 
 ## §G. Rejected/Deferred Architecture Alternatives
 
