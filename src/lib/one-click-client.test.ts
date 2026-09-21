@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const { getQuote } = vi.hoisted(() => ({ getQuote: vi.fn() }));
 
@@ -12,7 +12,12 @@ vi.mock('@defuse-protocol/one-click-sdk-typescript', async () => {
   };
 });
 
-import { requestQuote, QuoteRejectedError, QuoteRequestError } from './one-click-client';
+import {
+  requestQuote,
+  QuoteRejectedError,
+  QuoteRequestError,
+  MissingIntegratorIdError,
+} from './one-click-client';
 import { ApiError } from '@defuse-protocol/one-click-sdk-typescript';
 
 const baseParams = {
@@ -26,8 +31,15 @@ const baseParams = {
 };
 
 describe('requestQuote', () => {
+  const originalIntegratorId = process.env.ONECLICK_INTEGRATOR_ID;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.ONECLICK_INTEGRATOR_ID = 'zephyroute';
+  });
+
+  afterEach(() => {
+    process.env.ONECLICK_INTEGRATOR_ID = originalIntegratorId;
   });
 
   it('requests a real (dry:false) quote carrying the integrator referral, landing directly on the destination chain', async () => {
@@ -62,6 +74,8 @@ describe('requestQuote', () => {
     expect(callArg.depositType).toBe('ORIGIN_CHAIN');
     expect(callArg.recipientType).toBe('DESTINATION_CHAIN');
     expect(callArg.depositMode).toBe('SIMPLE');
+    // FR2 (Story 1.6): zero requests sent anonymously
+    expect(callArg.referral).toBe('zephyroute');
     // verbatim fields (FR1): never paraphrased, exactly what 1Click returned
     expect(result.quote.minAmountOut).toBe('9869000');
     expect(result.quote.refundFee).toBe('1000');
@@ -83,5 +97,12 @@ describe('requestQuote', () => {
     getQuote.mockRejectedValue(new TypeError('fetch failed'));
 
     await expect(requestQuote(baseParams)).rejects.toBeInstanceOf(QuoteRequestError);
+  });
+
+  it('refuses to send any request at all when the integrator ID is not configured (FR2, Story 1.6: zero anonymous requests)', async () => {
+    delete process.env.ONECLICK_INTEGRATOR_ID;
+
+    await expect(requestQuote(baseParams)).rejects.toBeInstanceOf(MissingIntegratorIdError);
+    expect(getQuote).not.toHaveBeenCalled();
   });
 });

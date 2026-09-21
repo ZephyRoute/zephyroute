@@ -11,6 +11,7 @@ OpenAPI.TOKEN = () => Promise.resolve(process.env.ONECLICK_API_KEY ?? '');
 
 export class QuoteRequestError extends Error {}
 export class QuoteRejectedError extends Error {}
+export class MissingIntegratorIdError extends Error {}
 
 export interface RequestQuoteParams {
   originAsset: string;
@@ -38,7 +39,24 @@ export interface RequestQuoteParams {
  * `depositMode: SIMPLE` is correct here. This would need revisiting only
  * if a future version ever supported a Stellar-origin route.
  */
+/**
+ * FR2, Story 1.6: zero requests may ever be sent anonymously. This is a
+ * hard precondition, not a best-effort default, an unconfigured
+ * integrator ID fails loudly before any network call, rather than
+ * silently sending an unattributed quote request.
+ */
+function requiredIntegratorId(): string {
+  const referral = process.env.ONECLICK_INTEGRATOR_ID;
+  if (!referral) {
+    throw new MissingIntegratorIdError(
+      'ONECLICK_INTEGRATOR_ID is not configured. Refusing to send an unattributed quote request.'
+    );
+  }
+  return referral;
+}
+
 export async function requestQuote(params: RequestQuoteParams): Promise<QuoteResponse> {
+  const referral = requiredIntegratorId();
   try {
     return await OneClickService.getQuote({
       dry: false,
@@ -54,7 +72,7 @@ export async function requestQuote(params: RequestQuoteParams): Promise<QuoteRes
       recipient: params.recipient,
       recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN,
       deadline: params.deadline,
-      referral: process.env.ONECLICK_INTEGRATOR_ID,
+      referral,
     });
   } catch (cause) {
     if (cause instanceof ApiError) {
