@@ -31,7 +31,7 @@ Zephyroute lets someone holding stablecoins or BTC on Ethereum, Arbitrum, or Bit
 
 Two sub-profiles need materially different UX depth within the same flow:
 - **Returning Stellar user** (UJ-1) — already has a funded G-account and trustline; wants the fastest possible path from quote to earning.
-- **Brand-new-to-Stellar user** (UJ-2) — needs trustlines, reserves, and the account model itself hidden entirely, onboarding through an embedded wallet (pending Open Question 1) or a documented manual fallback.
+- **Brand-new-to-Stellar user** (UJ-2) — needs trustlines, reserves, and the account model itself hidden entirely, onboarding through an embedded wallet (DFNS, confirmed live, Open Question 1 resolved 2026-09-20) or a documented manual fallback for edge cases.
 
 **Explicit non-users (v1):** people with no crypto on any chain yet (needs a fiat ramp, deferred); regulated/institutional capital needing compliance guarantees this flow doesn't provide; anyone wanting yield-strategy choice beyond DeFindex's existing vault menu.
 

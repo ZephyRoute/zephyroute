@@ -27,7 +27,7 @@ FR2: Attribute every quote to the gateway's integrator ID (100% of quotes; indep
 FR3: Validate destination trustline before quoting (routes to onboarding path FR6 if missing; runs before the quote request, not after).
 FR4: Execute settlement and detect arrival (live status quoted to submitted to settled; detection based on the user's actual Horizon balance, not 1Click's status field alone).
 FR5: Connect an existing Stellar wallet (Stellar Wallets Kit / Freighter; never requests or stores a private key or seed phrase).
-FR6: Onboard a brand-new-to-Stellar user (embedded wallet via Privy/DFNS if Open Question 1 resolves positively; documented manual fallback otherwise).
+FR6: Onboard a brand-new-to-Stellar user (embedded wallet via DFNS, confirmed live, Open Question 1 resolved 2026-09-20; documented manual fallback for edge cases).
 FR7: Build an unsigned deposit transaction (default USDC Blend Autocompound vault; `invest: true` by default; `amounts_min` always a real slippage-protected value).
 FR8: Sign and submit within the authorization window (visible countdown; automatic graceful XDR rebuild on expiry without repeating FR1-FR4).
 FR9: Confirm and resume deposit state (reads back dfToken balance; resumable from any device, any later time, skipping FR1-FR4 on resume).

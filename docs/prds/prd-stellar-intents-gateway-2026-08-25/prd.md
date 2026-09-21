@@ -84,7 +84,7 @@ The gateway's job is to be the thinnest possible layer between two already-live,
 - **Blend v2** — The lending protocol DeFindex's default vaults route into; one layer beneath the gateway's direct integrations, not integrated directly by the gateway itself.
 - **SorobanAuthorizationEntry** — The signed, time-bound authorization Soroban requires for a `deposit()` call; expires in 12–60 ledgers (~1–5 minutes), with no ERC-20-style indefinite allowance.
 - **Architecture A′** — The MVP architecture this PRD scopes: NEAR Intents → user's Stellar account → DeFindex vault, zero proprietary Soroban contracts.
-- **Architecture B** — A rejected/deferred alternative: a proprietary Soroban smart-account contract that would collapse the flow to one signature. Only justified if Open Question 1 resolves negatively (§14).
+- **Architecture B** — A rejected/deferred alternative: a proprietary Soroban smart-account contract that would collapse the flow to one signature. Would only have been justified if Open Question 1 had resolved negatively; it resolved positively instead (§14), so Architecture B stays deferred and unjustified.
 - **SCF Integration Track** — The Stellar Community Fund's funding track for products that compose existing ecosystem integrations rather than build new protocols; pays its largest tranche (40%) against a panel-ratified on-chain metric, not mere mainnet launch.
 - **Tranche #3** — That final, metric-gated SCF Integration Track payment; this PRD's Success Metrics (§8) are written to be usable as that metric.
 
@@ -131,7 +131,7 @@ User can execute the real (non-dry) swap; system polls or listens for settlement
 
 ### 5.2 Wallet & Signing Layer
 
-**Description:** Handles connecting an existing Stellar wallet for returning users, and — pending Open Question 1 — onboarding brand-new users via an embedded wallet. Realizes UJ-1, UJ-2.
+**Description:** Handles connecting an existing Stellar wallet for returning users, and onboarding brand-new users via an embedded wallet (DFNS, confirmed live, Open Question 1 resolved 2026-09-20). Realizes UJ-1, UJ-2.
 
 **Functional Requirements:**
 
@@ -213,7 +213,7 @@ System exposes a view of cumulative attributable volume, net-new TVL, unique fun
 
 #### FR-12: Ship as an embeddable widget
 
-**[ASSUMPTION — Open Question 7, unconfirmed partnership]** Gateway is packaged as an embeddable widget/SDK component, not only a standalone site, so a partner wallet (e.g. THORWallet) can integrate it as a swap corridor without building their own DeFindex integration.
+**[Open Question 7, resolved for THORWallet specifically 2026-09-20, no partner confirmed]** Gateway is packaged as an embeddable widget/SDK component, not only a standalone site, so a partner wallet can integrate it as a swap corridor without building their own DeFindex integration. THORWallet was the original target partner but shipped its own native NEAR Intents plus Blend integration and no longer needs a third-party corridor; the widget still ships generic, targeting a future partner who lacks an existing native swap-to-Stellar-yield loop.
 
 **Consequences (testable):**
 - Widget build is decoupled from any specific partner's approval — it ships as part of v1 regardless of whether a THORWallet partnership is confirmed by launch (see §7).
@@ -227,7 +227,7 @@ Gateway also ships as a standalone web app, serving as both the v1 launch surfac
 
 ## 6. Non-Goals (Explicit)
 
-- No proprietary Soroban contracts in v1 (Architecture A′ only; Architecture B stays deferred pending Open Question 1).
+- No proprietary Soroban contracts in v1 (Architecture A′ only; Architecture B stays deferred and unjustified now that Open Question 1 has resolved positively).
 - No custody of user funds or keys, at any layer, under any circumstance.
 - No fiat on/off-ramp in v1 (Rule #13 MEDIUM priority — deferred, not core).
 - No proprietary yield strategy logic — the gateway only ever offers DeFindex's existing vault menu, never its own strategy.
@@ -252,7 +252,7 @@ Gateway also ships as a standalone web app, serving as both the v1 launch surfac
 - Formal THORWallet (or any other) distribution partnership — pursued in parallel, not a launch blocker; the widget (FR-12) ships regardless so integration can happen whenever a partner is ready. `[NOTE FOR PM]` — this is the single highest-leverage lever for real traction; revisit urgently once v1 is live.
 - Fiat on/off-ramp integrations (Anchor Platform, Moneygram, BlindPay, Mercuryo) — Rule #13 MEDIUM priority, deferred to a post-MVP phase.
 - Stellar Disbursement Platform-based recurring payments from accrued yield — Rule #13 SPECULATIVE priority (Phase 4 idea), not MVP.
-- Architecture B (proprietary smart account) — only revisited if Open Question 1 resolves negatively.
+- Architecture B (proprietary smart account) — would only have been revisited had Open Question 1 resolved negatively; it resolved positively instead (2026-09-20), so Architecture B stays out of scope.
 - DeFindex revenue-share negotiation — upside pursued once volume is provable (v1.1+), not a v1 dependency.
 
 ## 8. Monetization
@@ -337,6 +337,6 @@ v1's revenue model is NEAR Intents' native, anonymous **integrator fee**, attach
 
 - §3.4 (UJ-2) / §5.2 (FR-6): Brand-new-to-Stellar users can be onboarded via Privy/DFNS embedded wallets without gateway custody, confirmed live for both providers 2026-09-20, no longer an open assumption (Open Question 1).
 - §5.1 (FR-3): Destination trustline is assumed to remain a hard precondition for settlement rather than something HOT Bridge can resolve on a brand-new account — unconfirmed, tracked as Open Question 2.
-- §5.5 (FR-12): THORWallet is assumed to be a willing, technically-ready distribution partner — unconfirmed, tracked as Open Question 7.
+- §5.5 (FR-12): A willing, technically-ready distribution partner is assumed to exist, no longer THORWallet specifically (deprioritized 2026-09-20), no replacement candidate confirmed yet, tracked as Open Question 7.
 - §8: Integrator fee is assumed enabled by default at whatever rate NEAR Intents' partner program grants — exact rate unconfirmed, tracked as Open Question 9.
 - §11 (Privacy): No proprietary KYC/identity collection is assumed necessary in v1, pending legal confirmation per Open Question 5.
