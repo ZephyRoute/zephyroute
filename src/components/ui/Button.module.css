@@ -1,0 +1,54 @@
+.button {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: 6px;
+  padding: calc(var(--space-unit) * 1.25) calc(var(--space-unit) * 2);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Primary: filled with the accent, ink-colored text (UX-DR8) */
+.primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* Secondary: underlined accent, no fill */
+.secondary {
+  background: transparent;
+  color: var(--color-accent);
+  border-bottom: 1px solid var(--color-accent);
+  border-radius: 0;
+  padding-inline: 0;
+}
+
+.secondary:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+/* Tertiary: muted text, no border, no fill */
+.tertiary {
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.tertiary:hover:not(:disabled) {
+  color: var(--color-text);
+}
