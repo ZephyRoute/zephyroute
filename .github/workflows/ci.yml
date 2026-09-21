@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+
+jobs:
+  secret-scan:
+    name: Secret scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        # Runs the MIT-licensed gitleaks CLI directly rather than the
+        # gitleaks-action wrapper, which requires a paid license key for
+        # organization-owned repos (this repo is owned by the ZephyRoute
+        # org) since the wrapper's own license changed at v2.0.0. Scans
+        # full commit history via `git log -p`, exits 1 (failing the job)
+        # if any secret is found.
+        run: docker run -v "$GITHUB_WORKSPACE:/repo" zricethezav/gitleaks:latest git /repo
+
+  quality:
+    name: Lint, typecheck, and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: ESLint (includes ARIA/accessibility rules)
+        run: npm run lint
+      - name: Stylelint (design-token discipline)
+        run: npm run lint:css
+      - name: TypeScript strict-mode compile check
+        run: npx tsc --noEmit
+      - name: Test suite (includes WCAG contrast and axe accessibility checks)
+        run: npm run test
+      - name: Production build
+        run: npm run build

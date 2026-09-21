@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axe } from 'jest-axe';
 import { Button } from './Button';
 
 describe('Button', () => {
@@ -43,5 +44,18 @@ describe('Button', () => {
 
     await user.click(button);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('has no automatically detectable accessibility violations in any variant', async () => {
+    const { container } = render(
+      <>
+        <Button variant="primary">Continue</Button>
+        <Button variant="secondary">Learn more</Button>
+        <Button variant="tertiary">Dismiss</Button>
+      </>
+    );
+
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });
