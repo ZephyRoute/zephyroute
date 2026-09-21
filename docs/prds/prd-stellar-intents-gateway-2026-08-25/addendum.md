@@ -20,6 +20,8 @@ No project found doing the exact combined flow (NEAR Intents/1Click + HOT Bridge
 
 **Read:** the acquisition half (NEAR Intents → Stellar) has a partial precedent (WOWMAX). The destination half (→ DeFindex/Blend yield) has full precedent (DeFindex, For Yield, BIM Exchange). Nobody has fused specifically these two. That fusion is the differentiation.
 
+**Figures re-verified live 2026-09-20** against the SCF project directory itself (both had been flagged earlier as not matching an offline dataset, unconfirmed): WOWMAX's $98,560 is exact, one awarded submission in SCF #43 (Build, End-User Application), and its own GitHub repo (`wowmax-near-intents-integration`) confirms the NEAR Intents integration claimed above. Rozo's $248,000 is also correct, it is the sum of two separate awarded submissions ($98.0K in SCF #44, $150.0K in SCF #38), not a single-round figure; a third Rozo submission in SCF #43 ($150.0K requested) was not awarded and isn't counted. Both figures in the table above stand as originally written.
+
 ### A.2 Comparable "bridge-and-earn" products in other ecosystems
 
 | Product | Chain scope | Mechanism | Positioning language |
@@ -38,7 +40,7 @@ Sources: Superform docs (docs.superform.xyz/e2e-flows/cross-chain-deposit), LI.F
 - Reviewed via **Panel Review only** (no community vote for Integration Track); cutoff around 1/40 NQG score; 11–13 panel members.
 - Tranches: #0–#2 (10/20/30%) milestone-based as usual; **#3 (40%, the largest single payment)** releases only against a **committed, panel-ratified on-chain success metric** (NAV target or cumulative volume/payments, over an agreed window) — the panel explicitly disregards self-generated, washed, or gamed activity.
 - Eligibility guardrail: Open Track explicitly redirects "applications with traction primarily focused on integrating existing tools like wallets, anchors, or passkeys" to the Integration Track, and warns teams "replicating existing ecosystem solutions" to either use this track or articulate clear improvement if staying on Open Track — relevant given the WOWMAX/BIM Exchange/For Yield precedent above.
-- Full/current Integration List rotates quarterly; **NEAR Intents/1Click/HOT Bridge's explicit inclusion status for the current quarter's list was not independently re-confirmed in this research pass** — re-verify at github.com/stellar.gitbook.io/scf-handbook before any submission, since it was confirmed present in the version fetched during the Phase 3 artifact but the list rotates.
+- Full/current Integration List rotates quarterly; **re-confirmed live 2026-09-20** via the SCF Handbook itself, NEAR Intents/1Click is present under the Cross-chain category as of that check. Since the list rotates, re-verify once more immediately before actual submission if significant time has passed.
 
 ### A.4 THORWallet detail
 
