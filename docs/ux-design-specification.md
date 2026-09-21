@@ -35,14 +35,14 @@ Two sub-profiles need materially different UX depth within the same flow:
 
 **Explicit non-users (v1):** people with no crypto on any chain yet (needs a fiat ramp, deferred); regulated/institutional capital needing compliance guarantees this flow doesn't provide; anyone wanting yield-strategy choice beyond DeFindex's existing vault menu.
 
-`[ASSUMPTION — to confirm during Visual Foundation/Responsive steps]` Device and usage-pattern context wasn't fully pinned down with the user at this step. Working assumption, consistent with the product's dual distribution surface (FR-12/FR-13): design **responsive-first, not desktop-first** — the standalone app must work fully on mobile web, since the embeddable widget will very plausibly run inside a partner's mobile app (e.g. THORWallet). Usage pattern is assumed to be primarily a deliberate, one-off action per session ("move capital to yield now"), with a lighter secondary "check my position" pattern layered on top via FR-9's resumable state — not a habitual daily-check product.
+`[ASSUMPTION — to confirm during Visual Foundation/Responsive steps]` Device and usage-pattern context wasn't fully pinned down with the user at this step. Working assumption, consistent with the product's dual distribution surface (FR-12/FR-13): design **responsive-first, not desktop-first** — the standalone app must work fully on mobile web, since the embeddable widget will very plausibly run inside a partner's mobile app. Usage pattern is assumed to be primarily a deliberate, one-off action per session ("move capital to yield now"), with a lighter secondary "check my position" pattern layered on top via FR-9's resumable state — not a habitual daily-check product.
 
 ### Key Design Challenges
 
 - **Signature-window countdown UX** — the ~1–5 minute Soroban authorization window (FR-8) is a hard NFR, not a nice-to-have; expiry must never surface as an opaque error, only as a graceful, automatic rebuild.
 - **Variable settlement wait** — 40s on Arbitrum vs. ~14 min on Bitcoin (§E, addendum); the user must stay informed without the product feeling stalled, especially on the BTC route.
 - **Two onboarding depths, one flow** — hiding trustlines/reserves entirely for UJ-2 while never over-explaining to UJ-1.
-- **One experience, two containers** — the same UX must hold up as a full standalone app and as a narrow, partner-branded embedded widget (THORWallet).
+- **One experience, two containers** — the same UX must hold up as a full standalone app and as a narrow, partner-branded embedded widget.
 - **Cross-session, cross-device resumability** (UJ-3) — a user who settled funds but never deposited must be able to resume from any device, any wallet, at any later time, with zero funds ever having left their control in the meantime.
 
 ### Design Opportunities
@@ -59,7 +59,7 @@ The single most important interaction isn't only the second signature (the depos
 
 ### Platform Strategy
 
-Web, multi-container: standalone app plus an embedded widget inside partner apps (THORWallet, mobile and web). No native app (explicit non-goal, §6). No offline functionality needed, since every step depends on live chain state. Device capability to leverage: browser wallet-extension detection/connection on desktop (Freighter via Stellar Wallets Kit) and embedded-wallet flows on mobile, inside the partner's app.
+Web, multi-container: standalone app plus an embedded widget inside partner apps (mobile and web). No native app (explicit non-goal, §6). No offline functionality needed, since every step depends on live chain state. Device capability to leverage: browser wallet-extension detection/connection on desktop (Freighter via Stellar Wallets Kit) and embedded-wallet flows on mobile, inside the partner's app.
 
 ### Effortless Interactions
 
@@ -84,7 +84,7 @@ Web, multi-container: standalone app plus an embedded widget inside partner apps
 2. Show, don't abstract.
 3. One flow, two depths, with the fork (trustline) designed explicitly, not hidden.
 4. State lives on-chain, not in a session.
-5. Container fidelity: inside a partner's widget (THORWallet), the experience should feel native to that app, not like an iframe bolted on top; the partner's brand and visual rhythm take priority over Zephyroute's own identity in that context.
+5. Container fidelity: inside a partner's widget, the experience should feel native to that app, not like an iframe bolted on top; the partner's brand and visual rhythm take priority over Zephyroute's own identity in that context.
 
 ### User Mental Model
 
@@ -245,9 +245,9 @@ Custom Design System. Zephyroute builds its own component library and visual lan
 
 ### Customization Strategy
 
-- Container Fidelity (Core User Experience, Experience Principle #5) still applies inside a fully custom system: the token layer must let the embedded widget swap Zephyroute's own token values for a partner-appropriate theme (e.g. via scoped CSS custom properties at the widget's root) without forking components, so "custom design system" stays compatible with "feels native inside THORWallet."
+- Container Fidelity (Core User Experience, Experience Principle #5) still applies inside a fully custom system: the token layer must let the embedded widget swap Zephyroute's own token values for a partner-appropriate theme (e.g. via scoped CSS custom properties at the widget's root) without forking components, so "custom design system" stays compatible with "feels native inside a partner's app."
 - The visual language explored in Visual Foundation (next major phase) inherits the trust-forward, dark, single-accent direction validated against XOXNO in UX Pattern Analysis, with Zephyroute's own specific palette and typography decided fresh there, not copied.
-- Token discipline as a hard gate, not a convention: no component ships with a hardcoded, non-token visual value (a raw color, a fixed border-radius, an off-token spacing value), enforced by lint rule or review checklist. This exists specifically because the Container Fidelity promise breaks silently the first time a value is hardcoded under time pressure, and by the time it surfaces (in a THORWallet demo, late), it's expensive to retrofit across every component already built.
+- Token discipline as a hard gate, not a convention: no component ships with a hardcoded, non-token visual value (a raw color, a fixed border-radius, an off-token spacing value), enforced by lint rule or review checklist. This exists specifically because the Container Fidelity promise breaks silently the first time a value is hardcoded under time pressure, and by the time it surfaces (in a partner demo, late), it's expensive to retrofit across every component already built.
 
 ## Visual Design Foundation
 
@@ -268,7 +268,7 @@ Base body size 15px/16px with a compact type scale, favoring density over genero
 
 ### Spacing & Layout Foundation
 
-8px base spacing unit. Single narrow content column (roughly 480 to 560px max width) at all times, never a wide multi-column or dashboard layout, since the core flow (quote, sign, sign) is inherently linear. This single decision serves two needs at once: it keeps the standalone app dense and efficient, and it is already compatible with THORWallet's narrow embedded widget width without a separate responsive redesign.
+8px base spacing unit. Single narrow content column (roughly 480 to 560px max width) at all times, never a wide multi-column or dashboard layout, since the core flow (quote, sign, sign) is inherently linear. This single decision serves two needs at once: it keeps the standalone app dense and efficient, and it is already compatible with a typical partner embedded widget's narrow width without a separate responsive redesign.
 
 Density is not uniform: quote rows and step-tracker items stay compact and tight, but the Sign action, its countdown, and any warning or error state get extra spacing around them, since these are the highest-stakes moments in the flow and should never be visually crowded or easy to mis-tap.
 
@@ -277,7 +277,7 @@ Density is not uniform: quote rows and step-tracker items stay compact and tight
 - WCAG AA contrast targets (4.5:1 for body text, 3:1 for large text and UI components) apply to every color pairing in this system, verified by relative-luminance calculation against the dark palette: Signal Cyan, muted text, and the accent-ink button text all clear these targets with comfortable margin. The base error red clears AA only narrowly, which is why error and warning text use the lighter `#FF7A80` variant instead.
 - State never relies on color alone: step-tracker progress, warnings, and errors always pair their color with a label or icon change, since color-only signaling fails for colorblind users and conflicts with the No silent failure acceptance criterion. This is not optional polish for the red/amber pair specifically, since protanopia and deuteranopia can render both as a similar brownish tone.
 - Any animated indicator (the step tracker's active-step pulse, the signature countdown) respects `prefers-reduced-motion`, falling back to a static state with no loss of information.
-- Countdown and other critical text stay legible at the smaller width the THORWallet embed imposes, not only at the standalone app's own viewport.
+- Countdown and other critical text stay legible at the smaller width a partner embed imposes, not only at the standalone app's own viewport.
 
 ## Design Direction Decision
 
@@ -307,11 +307,11 @@ The status rail, quote data, step tracker, and sign action all fall inside the b
 
 ## User Journey Flows
 
-### UJ-1: Priya swaps from inside THORWallet
+### UJ-1: Priya swaps from inside a partner's embedded widget
 
 ```mermaid
 flowchart TD
-    A[Opens Earn on Stellar corridor in THORWallet] --> B[Requests quote: Arbitrum USDC to Stellar USDC]
+    A[Opens Earn on Stellar corridor inside a partner wallet's embed] --> B[Requests quote: Arbitrum USDC to Stellar USDC]
     B --> C[Reviews verbatim quote: fee, ETA, minimum received]
     C --> D[Signs origin-chain swap]
     D --> E[Settlement wait, about 40s, live status shown]
@@ -332,9 +332,9 @@ flowchart TD
 flowchart TD
     A[Opens standalone gateway web app] --> B[Connects Ethereum wallet]
     B --> C[Requests quote: Ethereum USDC to Stellar USDC]
-    C --> D{Embedded wallet can auto-create, fund, and trustline a new Stellar account}
-    D -->|Confirmed by launch| E[Embedded wallet creates account in-flow, trustline fork shown explicitly]
-    D -->|Not confirmed| F[Documented manual pre-step: fund a minimal account first]
+    C --> D{Embedded wallet provider (DFNS) available for this user right now}
+    D -->|Available, the confirmed primary path| E[Embedded wallet creates account in-flow, trustline fork shown explicitly]
+    D -->|Unavailable, edge case: outage, unsupported region, opt-out| F[Documented manual pre-step: fund a minimal account first]
     E --> G[Signs origin-chain swap]
     F --> G
     G --> H[Settlement wait, actively reassuring live status, highest-anxiety point for a first-timer]
@@ -468,7 +468,7 @@ Only these four components are genuinely custom-built from scratch, matching the
 
 - Fully linear, no persistent navigation chrome (no tab bar, no sidebar), consistent with the single narrow content column from Visual Design Foundation.
 - No back action once the origin-chain swap has been signed and settlement is underway, since "going back" mid-transaction would be meaningless and dangerous to imply as possible. Before signing, a "start over" affordance is available.
-- Inside the THORWallet embed, the gateway suppresses even its own minimal header chrome, deferring entirely to the partner's navigation shell, per Container Fidelity.
+- Inside a partner embed, the gateway suppresses even its own minimal header chrome, deferring entirely to the partner's navigation shell, per Container Fidelity.
 - A resumed session (UJ-3) drops the user directly onto the deposit step, never back at the quote screen, since re-quoting a settlement that already happened is not a meaningful action.
 
 ### Additional Patterns
@@ -483,7 +483,7 @@ Only these four components are genuinely custom-built from scratch, matching the
 
 Mobile-first, not just mobile-friendly, per the confirmed assumption that the standalone app must work fully on mobile web, since the embeddable widget will plausibly run inside a partner's mobile app. Desktop does not get extra columns or extra chrome: the single narrow content column (480 to 560px max width) from Visual Design Foundation is the permanent layout, not a mobile compromise, since the flow is inherently linear. On desktop, that column simply sits centered with the flat background filling the rest, never stretched wide. Tablet uses the exact same narrow column, centered, with no distinct tablet-specific arrangement needed since the column's shape never changes.
 
-The THORWallet embed is not treated as a device category, it is a distinct container context that already gets its own token-swapping strategy from Container Fidelity, and its realistic width sits at or below the mobile breakpoint, so mobile-first design already covers the embed's real constraints by default.
+The partner embed is not treated as a device category, it is a distinct container context that already gets its own token-swapping strategy from Container Fidelity, and its realistic width sits at or below the mobile breakpoint, so mobile-first design already covers the embed's real constraints by default.
 
 ### Breakpoint Strategy
 
@@ -500,7 +500,7 @@ WCAG 2.1 Level AA is the target, the same baseline already used when computing c
 
 ### Testing Strategy
 
-Given the aggressive weeks-scale timeline and small team, full assistive-technology testing across every device before launch is not realistic. The pragmatic floor: automated contrast and ARIA linting in CI (enforced as a merge gate, not advisory), one real keyboard-only pass through all three user journeys, and one real screen-reader pass (VoiceOver or NVDA) through the deposit-signing critical path specifically, owned by a named person on the team rather than left ambient, since that is the highest-stakes moment in the product. Real device testing prioritizes the actual distribution surfaces already committed to: a genuine mobile browser, not a resized desktop window. Since the THORWallet partnership itself is still unconfirmed (PRD Open Question 7), embed testing does not wait on that confirmation: a synthetic iframe at the target embed width stands in until the real partnership resolves. Colorblindness simulation targets the one pairing already flagged as risky in Visual Design Foundation, warning amber against error red.
+Given the aggressive weeks-scale timeline and small team, full assistive-technology testing across every device before launch is not realistic. The pragmatic floor: automated contrast and ARIA linting in CI (enforced as a merge gate, not advisory), one real keyboard-only pass through all three user journeys, and one real screen-reader pass (VoiceOver or NVDA) through the deposit-signing critical path specifically, owned by a named person on the team rather than left ambient, since that is the highest-stakes moment in the product. Real device testing prioritizes the actual distribution surfaces already committed to: a genuine mobile browser, not a resized desktop window. Since no embed partner is confirmed yet (PRD Open Question 7, THORWallet deprioritized as the target 2026-09-20, a future partner not yet identified), embed testing does not wait on that confirmation: a synthetic iframe at the target embed width stands in until a real partnership resolves. Colorblindness simulation targets the one pairing already flagged as risky in Visual Design Foundation, warning amber against error red.
 
 Any violation surfaced by this testing floor, an ARIA failure, a keyboard trap, a contrast regression, is a launch blocker, not a logged note for later. This closing rule matches the same hard-gate discipline the rest of this specification already commits to (Token discipline, the CI enforcement above), rather than letting the final testing pass be the one place convention quietly replaces enforcement.
 

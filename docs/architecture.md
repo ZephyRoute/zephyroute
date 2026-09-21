@@ -40,7 +40,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - NEAR Intents / 1Click API (external, production, no SLA) — Base and Solana origins currently down upstream (Open Question 3). Confirmed to validate destination trustline against Horizon *before* accepting a quote — this makes trustline state a precondition of FR-1, not a downstream consequence of it.
 - DeFindex API/SDK (external, production, auth-gated) — deposit() requires a `SorobanAuthorizationEntry` expiring in 12–60 ledgers; no ERC-20-style indefinite allowance exists. Carries no integrator ID concept of its own — attribution here depends entirely on the correlation layer, not on DeFindex's API.
 - Wallet layer: Stellar Wallets Kit / Freighter confirmed viable; Privy/DFNS embedded-wallet onboarding capability confirmed live for both providers (Open Question 1, resolved 2026-09-20), DFNS additionally offering fee-sponsored account creation and trustline setup on Stellar specifically. Still a fork point for the onboarding architecture (returning wallet-connect vs. embedded-wallet onboarding), but no longer a hard technical unknown.
-- Distribution: THORWallet embed partnership unconfirmed (Open Question 7) — the widget must ship independent of partner confirmation, but which integrator ID a widget-originated flow reports to 1Click (Zephyroute's, the host partner's, or a sub-attributed value) is an open architectural question, not just a product one.
+- Distribution: THORWallet deprioritized as the target embed partner (Open Question 7, resolved for THORWallet specifically 2026-09-20, since they shipped their own native NEAR Intents plus Blend integration and no longer need a third party for the core loop); the widget still ships generic, targeting a future partner who lacks an existing native swap-to-Stellar-yield loop. Which integrator ID a widget-originated flow reports to 1Click (Zephyroute's, the host partner's, or a sub-attributed value) remains an open architectural question independent of which partner is chosen.
 - No proprietary database of funds or custody ledger by design (Rule #9) — any persistence layer is a convenience cache, not a source of truth, except for the correlation record joining a user's Stellar address across the two integrations, which may be the one piece of state genuinely irreplaceable by public data alone.
 
 ### Cross-Cutting Concerns Identified
@@ -58,7 +58,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - **Trustline is a precondition, not a consequence.** 1Click validates the destination Stellar account's trustline against Horizon before it will even issue a quote. The trustline-check (FR-3) must architecturally sit before the quote request (FR-1), not after — this reorders the FR-1→FR-3 sequence implied by the PRD's feature ordering.
 - **The deposit XDR must be built reactively, not speculatively.** Settlement time varies from 60s (Ethereum/Arbitrum) to ~14 minutes (Bitcoin), while the Soroban authorization window is a fixed ~1–5 minutes measured from XDR construction. Building the deposit XDR ahead of confirmed settlement risks it expiring before the user can sign; this requires an active settlement-detection component (Horizon polling or equivalent) as a first-class piece of the architecture, not an implementation detail.
 - **The user's Stellar address is the hidden correlation key.** DeFindex's API has no integrator-ID concept, so net-new TVL (SM-2) can't be attributed from DeFindex's own records alone — it requires correlating the address that received funds via 1Click (which does carry the integrator ID) with that same address's later DeFindex deposits. This correlation step is likely the one piece of state that genuinely needs to persist somewhere, which tempers the "zero backend" framing from Rule #9 — the exception is narrow and specific, not a reopening of the custody question.
-- **Widget-context attribution is unresolved.** When the flow runs inside a partner's embed (e.g. THORWallet), which integrator ID gets sent to 1Click — Zephyroute's, the partner's, or a sub-attributed value — is not yet decided. This is a partnership/architecture decision, not just a product one, and it directly affects whether SM-1/SM-2 can be correctly attributed by traffic source.
+- **Widget-context attribution is unresolved.** When the flow runs inside a partner's embed, which integrator ID gets sent to 1Click — Zephyroute's, the partner's, or a sub-attributed value — is not yet decided. This is a partnership/architecture decision, not just a product one, and it directly affects whether SM-1/SM-2 can be correctly attributed by traffic source. (THORWallet, the original target partner for this widget, is no longer the assumed integration target, per Open Question 7's resolution on 2026-09-20, but the attribution question itself is partner-agnostic and applies to whichever partner is eventually pursued.)
 
 ## Starter Template Evaluation
 
@@ -187,7 +187,7 @@ Scaling: automatic via Vercel's serverless function model.
 
 **Implementation Sequence:** starter init then environment/secrets setup then the correlation-layer Upstash Redis instance and its API routes then the settlement-detection/polling component then the four bespoke UI components then the `/embed` route and its CSP/WalletConnect configuration last.
 
-**Cross-Component Dependencies:** the correlation layer's Redis instance is shared infrastructure for two purposes; the `/embed` route's viability is gated on the Step 3 CSP/WalletConnect finding being verified with THORWallet, itself gated on PRD Open Question 7; the monitoring decision here is interim, not a substitute for the full threat model PRD Open Question 10 still requires.
+**Cross-Component Dependencies:** the correlation layer's Redis instance is shared infrastructure for two purposes; the `/embed` route's viability is gated on the Step 3 CSP/WalletConnect finding being verified with whichever partner is eventually pursued (THORWallet deprioritized as that target 2026-09-20, per PRD Open Question 7's resolution, so this verification is no longer scheduled against a named partner); the monitoring decision here is interim, not a substitute for the full threat model PRD Open Question 10 still requires.
 
 ## Implementation Patterns & Consistency Rules
 
@@ -428,7 +428,7 @@ Quote request to 1Click, swap signed via `wallet-kit.ts`, settlement detected by
 
 **Critical Gaps:** None remaining. The three gaps found (state-type flattening, FR-3's missing file assignment, the unspecified nonce protocol) were all critical, since each would have caused real agent-to-agent implementation conflicts, and all three are now resolved directly in their originating sections.
 
-**Important Gaps:** None outstanding beyond what is already honestly tracked elsewhere (PRD Open Question 10's full threat model, PRD Open Question 1's onboarding-path fork, PRD Open Question 7's THORWallet CSP/WalletConnect verification), all deliberately deferred with stated rationale, not silently missing.
+**Important Gaps:** None outstanding beyond what is already honestly tracked elsewhere: PRD Open Question 10's full threat model (now resolved, see `docs/threat-model.md`), PRD Open Question 1's onboarding-path fork (resolved 2026-09-20, DFNS confirmed as the embedded-wallet path), and PRD Open Question 7's embed-partner CSP/WalletConnect verification (still open, but no longer scheduled against THORWallet specifically since that partnership was deprioritized 2026-09-20). All deliberately deferred with stated rationale, not silently missing.
 
 **Nice-to-Have Gaps:** None identified that would materially change implementation readiness.
 
@@ -475,8 +475,8 @@ All three issues found during this validation pass were corrected directly in th
 - The correlation layer's failure path (Redis unavailable) is an explicit architectural commitment, not an implied consequence.
 
 **Areas for Future Enhancement:**
-- The full threat model and monitoring plan (PRD Open Question 10) still needs its own dedicated pass before SCF tranche #2.
-- THORWallet's CSP and WalletConnect origin allowlist (PRD Open Question 7) need live verification once the partnership itself is confirmed.
+- ~~The full threat model and monitoring plan (PRD Open Question 10) still needs its own dedicated pass before SCF tranche #2.~~ Done: see `docs/threat-model.md`, completed 2026-09-13.
+- The chosen embed partner's CSP and WalletConnect origin allowlist need live verification once that partnership itself is confirmed. THORWallet was the original target here but was deprioritized 2026-09-20 (PRD Open Question 7), so this verification now waits on a future partner being identified, not on THORWallet specifically.
 
 ### Implementation Handoff
 
