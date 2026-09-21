@@ -21,6 +21,14 @@ const config = {
         'declaration-property-value-disallowed-list': null,
       },
     },
+    {
+      // CSS Modules convention: camelCase class names for ergonomic JS
+      // access (styles.feeRow), not kebab-case.
+      files: ['**/*.module.css'],
+      rules: {
+        'selector-class-pattern': '^[a-z][a-zA-Z0-9]*$',
+      },
+    },
   ],
 };
 

@@ -1,0 +1,33 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-unit) * 0.5);
+  padding-block: var(--space-unit);
+}
+
+.headline {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.feeRow {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.fullQuote {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: calc(var(--space-unit) * 0.5) calc(var(--space-unit) * 1.5);
+  font-size: 13px;
+}
+
+.fullQuote dt {
+  color: var(--color-text-muted);
+}
+
+.fullQuote dd {
+  color: var(--color-text);
+  word-break: break-all;
+}
