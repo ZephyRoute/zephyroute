@@ -27,6 +27,7 @@ Nobody has fused NEAR Intents settlement with DeFindex's yield vault specificall
 - **NEAR Intents / 1Click API** (confirmed present in the current SCF Integration List, Cross-chain category) handles cross-chain settlement, landing funds directly in the user's own Stellar account, never the gateway's.
 - **DeFindex SDK/API** for the yield deposit (default USDC Blend Autocompound vault). Zero proprietary Soroban contracts; the architecture composes only existing Integration List building blocks.
 - **Stellar Wallets Kit / Freighter** for wallet connection and transaction signing. Non-custodial by construction, the gateway never requests or stores a private key or seed phrase at any layer.
+- **Embedded wallet onboarding (DFNS, confirmed live 2026-09-20)** for users with no existing Stellar account: automated account creation and trustline setup, fee-sponsored so the new user never has to hold XLM to get started. Key material stays with the provider under the user's own authentication, never the gateway, preserving the same non-custodial invariant as the returning-user path.
 - **Horizon** for live settlement detection and destination-trustline validation before a quote is even requested.
 
 **Team:**
