@@ -145,7 +145,7 @@ User can connect a Stellar Wallets Kit-supported wallet (Freighter and others) t
 
 #### FR-6: Onboard a brand-new-to-Stellar user
 
-**[ASSUMPTION — Open Question 1, unconfirmed]** New user can have a funded account + trustline created via an embedded wallet provider (Privy or DFNS) without ever leaving the flow or the gateway holding custody.
+**[CONFIRMED, Open Question 1, verified live 2026-09-20]** New user can have a funded account + trustline created via an embedded wallet provider (Privy or DFNS) without ever leaving the flow or the gateway holding custody. DFNS additionally supports fee-sponsored account creation and trustline setup on Stellar specifically.
 
 **Consequences (testable):**
 - If confirmed feasible: account creation, funding of the ~0.5 XLM base reserve, and trustline establishment happen without a separate manual step, and the embedded wallet's key material is controlled by the provider under the user's own auth (biometric/email/social), never by the gateway.
@@ -310,7 +310,7 @@ v1's revenue model is NEAR Intents' native, anonymous **integrator fee**, attach
 | Risk | Mitigation |
 |---|---|
 | Base/Solana origin routes stay down beyond a few weeks | Launch v1 scoped to the 3 confirmed routes only; retest per Open Question 3 and expand later — do not block launch on this. |
-| Privy/DFNS cannot actually auto-create + fund + trustline a new Stellar account (Open Question 1 resolves negatively) | Architecture B becomes a live, Rule #3-justified question rather than an assumption; until then, FR-6 falls back to a documented manual pre-step for brand-new users. |
+| ~~Privy/DFNS cannot actually auto-create + fund + trustline a new Stellar account~~ **[RESOLVED, verified live 2026-09-20]** Both confirmed to support Stellar account creation and trustline setup; this row is retained for audit history, not an active risk. | Architecture B stays deferred and unjustified under Rule #3, since an existing Integration List path is confirmed to work; FR-6's manual pre-step (Story 2.3) is now a defensive fallback, not the assumed default. |
 | 1Click ToS KYC/AML obligation on the "Developer" creates legal exposure if unaddressed | Legal review completed before any SCF submission claims the flow is "KYC-free" (Open Question 5) — this is a hard gate on go-to-market claims, not just documentation hygiene. |
 | Solver takes origin funds but fails to settle at destination (structural risk of the intents model) | Mitigated structurally by NEAR's Verifier contract and the confirmed-live refund mechanism (`refundTo`/`refundType`/`refundFee` present on every real quote); this residual risk is inherited and disclosed, not eliminable by the gateway. |
 | DeFindex's deployed mainnet WASM doesn't match the audited/patched commits | Verify bytecode hash against the OtterSec-confirmed patch commits before/at launch (Open Question 4) — cheap, non-blocking, but must happen before any "audited" claim is made publicly. |
@@ -318,7 +318,7 @@ v1's revenue model is NEAR Intents' native, anonymous **integrator fee**, attach
 
 ## 14. Open Questions
 
-1. Can Privy or DFNS create + fund + establish a trustline on a brand-new Stellar account without the gateway holding custody? Blocks FR-6; determines whether Architecture B is ever justified under Rule #3.
+1. **[RESOLVED, verified live 2026-09-20]** Can Privy or DFNS create + fund + establish a trustline on a brand-new Stellar account without the gateway holding custody? Yes to both. Privy officially launched Stellar support (confirmed by Stellar's own announcement), EOA-based wallets. DFNS supports Stellar with documented "account creations, and trustline operations," never holding client assets itself, and additionally offers Fee Sponsors on Stellar for those same operation types specifically, letting a new user's account creation and trustline setup be gasless without the user needing XLM first. DFNS's fee-sponsorship capability makes it the stronger candidate for Zephyroute's specific onboarding-friction goal (hiding the account model entirely for Marcus/UJ-2), though final vendor selection (cost, SDK maturity) is still the user's call. This confirms Story 2.2 (embedded wallet onboarding) as the real, buildable path; Story 2.3 (manual fallback) is retained as a defensive fallback, not the assumed default. Blocks FR-6; Architecture B stays deferred, not justified, now that Rule #3's required check (an existing Integration List building block works) has a positive answer.
 2. Does settlement strictly require the destination Stellar account to already hold a trustline, or can HOT Bridge fund a brand-new, unfunded account directly? Blocks FR-3 and FR-6's exact shape.
 3. Will Base and Solana origin routes recover, and on what timeline? If down beyond ~1-2 weeks, treat as structural per Phase 2's plan.
 4. **[BYTECODE MATCH VERIFIED for sampled contracts, fee schedule still open]** What is DeFindex's exact fee schedule, and does the deployed mainnet WASM match the OtterSec-audited, patched commits? Confirmed live via Stellar Expert's public API (`api.stellar.expert/explorer/public/contract/{id}`, which returns machine-readable JSON, unlike the client-rendered UI): 3 mainnet contract addresses were checked against DeFindex's own officially-published WASM hashes (the "Mainnet Deployment 1.0.0" GitHub release and DeFindex's own docs site), covering the Factory contract and the Blend strategy contract (checked at two separate addresses). All 3 matched exactly, zero discrepancies. This is real evidence, not the full deployment: the top-level `defindex_vault` contract itself (distinct from its underlying strategy contracts) was not distinctly isolated and checked in this pass. Stellar Expert's own "unverified" validation badge on these contracts is a separate, unrelated automated-verification-service status, not evidence against the hash match. The exact fee schedule remains unverified and is a separate sub-question.
@@ -333,7 +333,7 @@ v1's revenue model is NEAR Intents' native, anonymous **integrator fee**, attach
 
 ## 15. Assumptions Index
 
-- §3.4 (UJ-2) / §5.2 (FR-6): Brand-new-to-Stellar users can be onboarded via Privy/DFNS embedded wallets without gateway custody — unconfirmed, tracked as Open Question 1.
+- §3.4 (UJ-2) / §5.2 (FR-6): Brand-new-to-Stellar users can be onboarded via Privy/DFNS embedded wallets without gateway custody, confirmed live for both providers 2026-09-20, no longer an open assumption (Open Question 1).
 - §5.1 (FR-3): Destination trustline is assumed to remain a hard precondition for settlement rather than something HOT Bridge can resolve on a brand-new account — unconfirmed, tracked as Open Question 2.
 - §5.5 (FR-12): THORWallet is assumed to be a willing, technically-ready distribution partner — unconfirmed, tracked as Open Question 7.
 - §8: Integrator fee is assumed enabled by default at whatever rate NEAR Intents' partner program grants — exact rate unconfirmed, tracked as Open Question 9.

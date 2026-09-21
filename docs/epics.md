@@ -360,13 +360,14 @@ As a brand-new-to-Stellar user,
 I want a funded Stellar account with the right trustline created for me automatically, without leaving the flow or handing my keys to anyone,
 So that I can go straight from "I've never used Stellar" to "I'm earning yield" in one sitting.
 
-**Note:** this story applies only if PRD Open Question 1 (Privy/DFNS account-creation capability) resolves positively by the time Epic 2 is built. If it resolves negatively, Story 2.3 replaces this one, they are not built together.
+**Note:** confirmed live 2026-09-20 as the primary path, not a conditional one. Both Privy and DFNS support Stellar account creation and trustline setup; DFNS additionally supports fee-sponsored account creation and trustline setup on Stellar specifically, letting this entire story run gasless for the new user. DFNS is the stronger candidate for that reason, final vendor choice still open. Story 2.3 is retained as a defensive fallback, not an equally-likely alternative.
 
 **Acceptance Criteria:**
 
-**Given** Privy or DFNS embedded-wallet account creation is confirmed feasible
+**Given** the embedded-wallet provider (DFNS or Privy) is invoked during onboarding
 **When** I go through onboarding
 **Then** an account is created, funded with the ~0.5 XLM base reserve, and the required trustline is established, all without a separate manual step
+**And** if the provider is DFNS, account creation and trustline setup are fee-sponsored, so I never need to hold XLM myself for this step
 **And** the embedded wallet's key material is controlled by the provider under my own authentication (biometric, email, or social), never by the gateway itself (AC #1, FR6 Out of Scope)
 
 #### Story 2.3: Manual Pre-Step Fallback for Account Funding
@@ -375,11 +376,11 @@ As a brand-new-to-Stellar user, when embedded-wallet onboarding isn't available 
 I want clear, documented instructions to fund a minimal account myself before continuing,
 So that I still have a real path to using Zephyroute, even without the automated option.
 
-**Note:** this story replaces Story 2.2 if PRD Open Question 1 resolves negatively; they are not built together.
+**Note:** retained as a defensive fallback now that Open Question 1 resolved positively (2026-09-20), not the assumed default path; still needed for edge cases (a specific provider outage, a region the chosen provider doesn't cover, or a user who opts out of the embedded-wallet flow).
 
 **Acceptance Criteria:**
 
-**Given** embedded-wallet onboarding is not confirmed feasible by launch
+**Given** embedded-wallet onboarding is unavailable for this user at this moment
 **When** I reach the new-user fork
 **Then** I see clear, step-by-step documented instructions for funding a minimal Stellar account and establishing the destination trustline myself, before the flow resumes at the quote step
 **And** this fallback never implies the gateway holds custody at any point in the manual process

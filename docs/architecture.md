@@ -39,7 +39,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 - NEAR Intents / 1Click API (external, production, no SLA) — Base and Solana origins currently down upstream (Open Question 3). Confirmed to validate destination trustline against Horizon *before* accepting a quote — this makes trustline state a precondition of FR-1, not a downstream consequence of it.
 - DeFindex API/SDK (external, production, auth-gated) — deposit() requires a `SorobanAuthorizationEntry` expiring in 12–60 ledgers; no ERC-20-style indefinite allowance exists. Carries no integrator ID concept of its own — attribution here depends entirely on the correlation layer, not on DeFindex's API.
-- Wallet layer: Stellar Wallets Kit / Freighter confirmed viable; Privy/DFNS embedded-wallet onboarding capability unconfirmed (Open Question 1) — a hard fork point for the onboarding architecture.
+- Wallet layer: Stellar Wallets Kit / Freighter confirmed viable; Privy/DFNS embedded-wallet onboarding capability confirmed live for both providers (Open Question 1, resolved 2026-09-20), DFNS additionally offering fee-sponsored account creation and trustline setup on Stellar specifically. Still a fork point for the onboarding architecture (returning wallet-connect vs. embedded-wallet onboarding), but no longer a hard technical unknown.
 - Distribution: THORWallet embed partnership unconfirmed (Open Question 7) — the widget must ship independent of partner confirmation, but which integrator ID a widget-originated flow reports to 1Click (Zephyroute's, the host partner's, or a sub-attributed value) is an open architectural question, not just a product one.
 - No proprietary database of funds or custody ledger by design (Rule #9) — any persistence layer is a convenience cache, not a source of truth, except for the correlation record joining a user's Stellar address across the two integrations, which may be the one piece of state genuinely irreplaceable by public data alone.
 
@@ -408,7 +408,7 @@ Quote request to 1Click, swap signed via `wallet-kit.ts`, settlement detected by
 
 ### Requirements Coverage Validation
 
-**Functional Requirements Coverage:** All 5 FR categories (FR-1 to FR-13) map to specific files. FR-3 specifically was a genuine gap, now closed above. FR-6's embedded-wallet onboarding path stays intentionally unresolved in structure beyond `lib/wallet-kit.ts` handling whichever path Open Question 1 resolves to, since that question is still open, not something this document should silently decide.
+**Functional Requirements Coverage:** All 5 FR categories (FR-1 to FR-13) map to specific files. FR-3 specifically was a genuine gap, now closed above. FR-6's embedded-wallet onboarding path is handled by `lib/wallet-kit.ts`; Open Question 1 (Privy/DFNS capability) resolved positively on 2026-09-20, after this validation was written, so the primary path is now confirmed, with the manual pre-step retained as a fallback, not an open unknown.
 
 **Non-Functional Requirements Coverage:**
 - Non-custodial invariant: enforced structurally (no file holds a key) and at the type level (`ValidatedTransactionXDR`).
