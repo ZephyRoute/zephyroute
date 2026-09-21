@@ -1,0 +1,19 @@
+.badge {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-unit) * 0.75);
+  padding-block: var(--space-unit);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.sentence {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}

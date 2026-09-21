@@ -25,4 +25,14 @@ Project-level instructions for Claude Code when working in this repository. This
 ## Notes
 
 - This file will grow as implementation decisions are made in later steps of the `create-architecture` workflow (patterns, structure) and once `dev-story`/`elliot-dev` begin producing code.
-- No code has been written yet as of this file's creation (2026-08-26) — the project is still in the documentation/architecture phase.
+- No code had been written as of this file's creation (2026-08-26), the project was still in the documentation/architecture phase then. Implementation began 2026-09-21, once the full documentation set (PRD, UX spec, architecture, epics, threat model, and an SCF Interest Form draft) was complete and the founder explicitly authorized starting Epic 1.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
