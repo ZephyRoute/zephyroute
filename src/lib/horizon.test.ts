@@ -17,7 +17,7 @@ vi.mock('@stellar/stellar-sdk', async () => {
   };
 });
 
-import { hasTrustline, HorizonQueryError } from './horizon';
+import { hasTrustline, getAssetBalance, HorizonQueryError } from './horizon';
 import { NotFoundError } from '@stellar/stellar-sdk';
 
 describe('hasTrustline', () => {
@@ -68,5 +68,40 @@ describe('hasTrustline', () => {
     await expect(hasTrustline('GABCDEF', { code: 'USDC', issuer: 'GISSUER' })).rejects.toBeInstanceOf(
       HorizonQueryError
     );
+  });
+});
+
+describe('getAssetBalance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns the balance and Horizon ledger-close timestamp, never the local clock, for a matching asset', async () => {
+    loadAccount.mockResolvedValue({
+      last_modified_time: '2026-09-21T12:00:00Z',
+      balances: [
+        { asset_type: 'credit_alphanum4', asset_code: 'USDC', asset_issuer: 'GISSUER', balance: '9.969' },
+      ],
+    });
+
+    const result = await getAssetBalance('GABCDEF', { code: 'USDC', issuer: 'GISSUER' });
+
+    expect(result).toEqual({ balance: '9.969', lastModifiedTime: '2026-09-21T12:00:00Z' });
+  });
+
+  it('returns null when the account exists but the asset line is not found (FR4: based on the real balance, not assumed)', async () => {
+    loadAccount.mockResolvedValue({ last_modified_time: '2026-09-21T12:00:00Z', balances: [] });
+
+    const result = await getAssetBalance('GABCDEF', { code: 'USDC', issuer: 'GISSUER' });
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null for a not-yet-existing account rather than throwing', async () => {
+    loadAccount.mockRejectedValue(new NotFoundError('Account not found', {} as never));
+
+    const result = await getAssetBalance('GABCDEF', { code: 'XLM' });
+
+    expect(result).toBeNull();
   });
 });

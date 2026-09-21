@@ -1,0 +1,75 @@
+.rail {
+  display: flex;
+  gap: calc(var(--space-unit) * 2);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-unit) * 0.5);
+  font-size: 13px;
+}
+
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+}
+
+.upcoming .label {
+  color: var(--color-text-muted);
+}
+
+.active .indicator {
+  background: var(--color-accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.active .label {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.done .indicator {
+  background: var(--color-accent);
+}
+
+.done .label {
+  color: var(--color-text);
+}
+
+.failed .indicator {
+  background: var(--color-error-ui);
+}
+
+.failed .label {
+  color: var(--color-error-text);
+}
+
+.timestamp {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .active .indicator {
+    animation: none;
+  }
+}

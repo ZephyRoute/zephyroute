@@ -4,6 +4,7 @@ import path from 'node:path';
 export default defineConfig({
   test: {
     environment: 'jsdom',
+    pool: 'vmThreads',
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', '*.test.ts'],
   },

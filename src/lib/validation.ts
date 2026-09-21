@@ -1,0 +1,58 @@
+import { getRedisClient } from '@/lib/redis';
+
+/**
+ * AC #3/FR10 groundwork: the settlement facts as they first become
+ * known (Story 1.8), before any deposit exists. No personally
+ * identifying data (NFR7), a Stellar address and public correlation
+ * IDs are not PII.
+ */
+export interface CorrelationRecord {
+  stellarAddress: string;
+  originChainAsset: string;
+  settledAmount: string;
+  settledAt: string;
+  integratorId: string;
+  correlationId: string;
+}
+
+export class InvalidCorrelationRecordError extends Error {}
+
+/**
+ * Validates a record's shape before it is ever persisted, never
+ * persisted unvalidated (this story's own AC). Deliberately not a
+ * generic schema library, every field here maps to a specific,
+ * already-established requirement.
+ */
+export function validateCorrelationRecord(
+  record: Partial<CorrelationRecord>
+): CorrelationRecord {
+  const missing = (
+    ['stellarAddress', 'originChainAsset', 'settledAmount', 'settledAt', 'integratorId', 'correlationId'] as const
+  ).filter((key) => !record[key]);
+
+  if (missing.length > 0) {
+    throw new InvalidCorrelationRecordError(
+      `Correlation record missing required field(s): ${missing.join(', ')}`
+    );
+  }
+  if (!record.stellarAddress!.startsWith('G')) {
+    throw new InvalidCorrelationRecordError('stellarAddress must be a Stellar G-address.');
+  }
+  if (Number.isNaN(Date.parse(record.settledAt!))) {
+    throw new InvalidCorrelationRecordError('settledAt must be a valid ISO timestamp.');
+  }
+
+  return record as CorrelationRecord;
+}
+
+/**
+ * Rule #9: this is a convenience cache write, never the sole record of
+ * a settlement, everything here remains independently reconstructable
+ * from Horizon/1Click's own integrator-attributed records (AC #9). A
+ * failed write here must never be treated as a failed settlement.
+ */
+export async function writeCorrelationRecord(record: Partial<CorrelationRecord>): Promise<void> {
+  const validated = validateCorrelationRecord(record);
+  const redis = getRedisClient();
+  await redis.set(`correlation:${validated.stellarAddress}`, JSON.stringify(validated));
+}

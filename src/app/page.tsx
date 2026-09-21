@@ -1,28 +1,75 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { TrustBadge } from '@/components/features/TrustBadge';
 import { QuoteDisplay } from '@/components/features/QuoteDisplay';
+import { StepTracker } from '@/components/features/StepTracker';
 import { useWallet } from '@/lib/hooks/useWallet';
 import { useQuote } from '@/lib/hooks/useQuote';
 import { useTrustlineCheck } from '@/lib/hooks/useTrustlineCheck';
+import { useOriginSwap } from '@/lib/hooks/useOriginSwap';
+import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
+import { getAssetBalance } from '@/lib/horizon';
+import { writeCorrelationRecord } from '@/lib/validation';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
+import type { FlowStage } from '@/lib/types';
 
 export default function Home() {
   const { address, status: walletStatus, errorMessage: walletError, connect } = useWallet();
   const { quote, status: quoteStatus, errorMessage: quoteError, requestQuoteFor } = useQuote();
   const trustline = useTrustlineCheck();
+  const originSwap = useOriginSwap();
   const [routeIndex, setRouteIndex] = useState(0);
   const [amount, setAmount] = useState('');
+  const [baselineBalance, setBaselineBalance] = useState<string | null>(null);
+  const correlationWrittenRef = useRef(false);
+
+  const route = SUPPORTED_ROUTES[routeIndex];
+
+  const settlement = useSettlementStatus({
+    accountId: address ?? '',
+    asset: route.stellarAsset,
+    baselineBalance: baselineBalance ?? '',
+    enabled: Boolean(address && baselineBalance !== null && originSwap.status === 'submitted'),
+  });
+
+  // Correlation record write, the moment settlement is first confirmed
+  // (Story 1.8's own AC), never repeated once already written.
+  useEffect(() => {
+    if (!settlement.settled || correlationWrittenRef.current || !address || !quote) return;
+    correlationWrittenRef.current = true;
+    writeCorrelationRecord({
+      stellarAddress: address,
+      originChainAsset: route.originAsset,
+      settledAmount: quote.quote.amountOut,
+      settledAt: settlement.settledAt ?? new Date().toISOString(),
+      integratorId: 'zephyroute',
+      correlationId: quote.correlationId,
+    }).catch(() => {
+      // Rule #9: a failed cache write is never treated as a failed
+      // settlement, the user's funds already arrived regardless.
+    });
+  }, [settlement.settled, settlement.settledAt, address, quote, route.originAsset]);
+
+  const flowStage: FlowStage = !quote
+    ? 'quoted'
+    : originSwap.status === 'idle' || originSwap.status === 'connecting' || originSwap.status === 'signing'
+      ? 'quoted'
+      : settlement.settled
+        ? 'settled'
+        : 'submitted';
 
   const handleRequestQuote = async () => {
     if (!address || !amount) return;
-    const route = SUPPORTED_ROUTES[routeIndex];
 
-    // FR3: the trustline check runs before the quote request fires, not after.
     const present = await trustline.check(address, route.stellarAsset);
     if (!present) return;
+
+    // Capture the pre-settlement balance so arrival can be detected as
+    // an increase, not merely "a balance is present" (FR4).
+    const current = await getAssetBalance(address, route.stellarAsset);
+    setBaselineBalance(current?.balance ?? '0');
 
     requestQuoteFor({
       originAsset: route.originAsset,
@@ -33,6 +80,15 @@ export default function Home() {
       slippageToleranceBps: 100,
       deadline: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     });
+  };
+
+  const handleSignOriginSwap = async () => {
+    if (!quote?.quote.depositAddress) return;
+    try {
+      await originSwap.signAndSubmit(route, quote.quote.depositAddress, quote.quote.amountIn);
+    } catch {
+      // surfaced via originSwap.errorMessage below, never a silent failure
+    }
   };
 
   return (
@@ -46,23 +102,30 @@ export default function Home() {
         </Button>
       )}
 
-      {walletStatus === 'connected' && address && (
-        <p role="status">Connected: {address}</p>
-      )}
+      {walletStatus === 'connected' && address && <p role="status">Connected: {address}</p>}
 
       {walletStatus === 'failed' && walletError && <p role="alert">{walletError}</p>}
 
       {walletStatus === 'connected' && (
         <div>
+          {quoteStatus === 'ready' && (
+            <StepTracker
+              stage={flowStage}
+              failed={originSwap.status === 'failed'}
+              timestamps={settlement.settledAt ? { settled: settlement.settledAt } : undefined}
+            />
+          )}
+
           <label htmlFor="route-select">Route</label>
           <select
             id="route-select"
             value={routeIndex}
             onChange={(event) => setRouteIndex(Number(event.target.value))}
+            disabled={quoteStatus === 'ready'}
           >
-            {SUPPORTED_ROUTES.map((route, index) => (
-              <option key={route.label} value={index}>
-                {route.label}
+            {SUPPORTED_ROUTES.map((r, index) => (
+              <option key={r.label} value={index}>
+                {r.label}
               </option>
             ))}
           </select>
@@ -75,18 +138,21 @@ export default function Home() {
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             placeholder="Amount in smallest units"
+            disabled={quoteStatus === 'ready'}
           />
 
-          <Button
-            onClick={handleRequestQuote}
-            disabled={quoteStatus === 'loading' || trustline.status === 'checking' || !amount}
-          >
-            {trustline.status === 'checking'
-              ? 'Checking your account…'
-              : quoteStatus === 'loading'
-                ? 'Getting quote…'
-                : 'Get quote'}
-          </Button>
+          {quoteStatus !== 'ready' && (
+            <Button
+              onClick={handleRequestQuote}
+              disabled={quoteStatus === 'loading' || trustline.status === 'checking' || !amount}
+            >
+              {trustline.status === 'checking'
+                ? 'Checking your account…'
+                : quoteStatus === 'loading'
+                  ? 'Getting quote…'
+                  : 'Get quote'}
+            </Button>
+          )}
 
           {trustline.status === 'missing' && (
             <p role="alert">
@@ -103,7 +169,31 @@ export default function Home() {
             <p role="alert">{quoteError}</p>
           )}
 
-          {quoteStatus === 'ready' && quote && <QuoteDisplay quote={quote} />}
+          {quoteStatus === 'ready' && quote && (
+            <>
+              <QuoteDisplay quote={quote} />
+
+              {originSwap.status === 'idle' && (
+                <Button onClick={handleSignOriginSwap}>Sign origin-chain swap</Button>
+              )}
+
+              {(originSwap.status === 'connecting' || originSwap.status === 'signing') && (
+                <p role="status">
+                  {originSwap.status === 'connecting' ? 'Connecting your EVM wallet…' : 'Signing…'}
+                </p>
+              )}
+
+              {originSwap.status === 'failed' && originSwap.errorMessage && (
+                <p role="alert">{originSwap.errorMessage}</p>
+              )}
+
+              {originSwap.status === 'submitted' && !settlement.settled && (
+                <p role="status">Waiting for settlement, this can take a few minutes…</p>
+              )}
+
+              {settlement.settled && <p role="status">Funds have landed in your Stellar account.</p>}
+            </>
+          )}
         </div>
       )}
     </main>
