@@ -14,6 +14,7 @@ import { useOriginSwap } from '@/lib/hooks/useOriginSwap';
 import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
 import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
 import { useCorrelationResume } from '@/lib/hooks/useCorrelationResume';
+import { useEmbeddedWalletOnboarding } from '@/lib/hooks/useEmbeddedWalletOnboarding';
 import { getAssetBalance } from '@/lib/horizon';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 import type { FlowStage } from '@/lib/types';
@@ -25,6 +26,7 @@ export default function Home() {
   const originSwap = useOriginSwap();
   const depositSigning = useDepositSigning();
   const resume = useCorrelationResume();
+  const onboarding = useEmbeddedWalletOnboarding();
   const [routeIndex, setRouteIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [baselineBalance, setBaselineBalance] = useState<string | null>(null);
@@ -256,7 +258,14 @@ export default function Home() {
                 </Button>
               )}
 
-              {trustline.status === 'missing' && <AccountSetupFork />}
+              {trustline.status === 'missing' && (
+                <AccountSetupFork
+                  status={onboarding.status}
+                  errorMessage={onboarding.errorMessage}
+                  stellarAddress={onboarding.stellarAddress}
+                  onCreateAccount={(email) => onboarding.onboard(email, route.stellarAsset)}
+                />
+              )}
 
               {trustline.status === 'failed' && trustline.errorMessage && (
                 <p role="alert">{trustline.errorMessage}</p>
