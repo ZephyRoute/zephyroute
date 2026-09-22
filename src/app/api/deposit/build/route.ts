@@ -43,12 +43,12 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const { xdr } = await buildDepositTransaction(
+    const { xdr, vaultAddress } = await buildDepositTransaction(
       body.depositorAddress,
       body.amountInSmallestUnits,
       body.slippageBps
     );
-    return Response.json({ xdr });
+    return Response.json({ xdr, vaultAddress });
   } catch (cause) {
     if (cause instanceof InvalidTransactionXDRError) {
       return Response.json(

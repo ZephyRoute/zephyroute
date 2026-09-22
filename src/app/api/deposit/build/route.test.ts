@@ -39,8 +39,8 @@ describe('POST /api/deposit/build', () => {
     expect(buildDepositTransaction).not.toHaveBeenCalled();
   });
 
-  it('returns the built xdr on success', async () => {
-    buildDepositTransaction.mockResolvedValue({ xdr: 'AAAAAgAAAAB' });
+  it('returns the built xdr and vault address on success', async () => {
+    buildDepositTransaction.mockResolvedValue({ xdr: 'AAAAAgAAAAB', vaultAddress: 'CVAULT' });
 
     const response = await POST(
       postRequest({ depositorAddress: 'GDEPOSITOR', amountInSmallestUnits: '10000000' })
@@ -48,12 +48,12 @@ describe('POST /api/deposit/build', () => {
 
     expect(response.status).toBe(200);
     const payload = await response.json();
-    expect(payload).toEqual({ xdr: 'AAAAAgAAAAB' });
+    expect(payload).toEqual({ xdr: 'AAAAAgAAAAB', vaultAddress: 'CVAULT' });
     expect(buildDepositTransaction).toHaveBeenCalledWith('GDEPOSITOR', '10000000', undefined);
   });
 
   it('passes through a caller-specified slippageBps', async () => {
-    buildDepositTransaction.mockResolvedValue({ xdr: 'AAAAAgAAAAB' });
+    buildDepositTransaction.mockResolvedValue({ xdr: 'AAAAAgAAAAB', vaultAddress: 'CVAULT' });
 
     await POST(
       postRequest({

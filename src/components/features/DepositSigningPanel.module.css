@@ -1,0 +1,42 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-unit) * 0.75);
+  padding-block: var(--space-unit);
+}
+
+.announcement:empty {
+  display: none;
+}
+
+.status {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.warning {
+  font-size: 14px;
+  color: var(--color-error-text);
+}
+
+.details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: calc(var(--space-unit) * 0.5) calc(var(--space-unit) * 1.5);
+  font-size: 13px;
+}
+
+.details dt {
+  color: var(--color-text-muted);
+}
+
+.details dd {
+  color: var(--color-text);
+  word-break: break-all;
+}
+
+.countdown {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-warning);
+}

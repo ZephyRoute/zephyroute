@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/Button';
 import { TrustBadge } from '@/components/features/TrustBadge';
 import { QuoteDisplay } from '@/components/features/QuoteDisplay';
 import { StepTracker } from '@/components/features/StepTracker';
+import { DepositSigningPanel } from '@/components/features/DepositSigningPanel';
 import { useWallet } from '@/lib/hooks/useWallet';
 import { useQuote } from '@/lib/hooks/useQuote';
 import { useTrustlineCheck } from '@/lib/hooks/useTrustlineCheck';
 import { useOriginSwap } from '@/lib/hooks/useOriginSwap';
 import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
+import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
 import { getAssetBalance } from '@/lib/horizon';
 import { writeCorrelationRecord } from '@/lib/validation';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
@@ -20,10 +22,12 @@ export default function Home() {
   const { quote, status: quoteStatus, errorMessage: quoteError, requestQuoteFor } = useQuote();
   const trustline = useTrustlineCheck();
   const originSwap = useOriginSwap();
+  const depositSigning = useDepositSigning();
   const [routeIndex, setRouteIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [baselineBalance, setBaselineBalance] = useState<string | null>(null);
   const correlationWrittenRef = useRef(false);
+  const depositStartedRef = useRef(false);
 
   const route = SUPPORTED_ROUTES[routeIndex];
 
@@ -52,13 +56,30 @@ export default function Home() {
     });
   }, [settlement.settled, settlement.settledAt, address, quote, route.originAsset]);
 
+  // Story 1.10: the deposit XDR is built on-demand the moment
+  // settlement is confirmed, never speculatively ahead of it
+  // (architecture.md's own timing constraint), and only once.
+  useEffect(() => {
+    if (!settlement.settled || depositStartedRef.current || !address || !quote) return;
+    depositStartedRef.current = true;
+    depositSigning.start({
+      depositorAddress: address,
+      amountInSmallestUnits: quote.quote.amountOut,
+      slippageBps: 100,
+    });
+  }, [settlement.settled, address, quote, depositSigning]);
+
   const flowStage: FlowStage = !quote
     ? 'quoted'
     : originSwap.status === 'idle' || originSwap.status === 'connecting' || originSwap.status === 'signing'
       ? 'quoted'
-      : settlement.settled
-        ? 'settled'
-        : 'submitted';
+      : !settlement.settled
+        ? 'submitted'
+        : depositSigning.status === 'submitted'
+          ? 'earning'
+          : depositSigning.status === 'idle'
+            ? 'settled'
+            : 'depositing';
 
   const handleRequestQuote = async () => {
     if (!address || !amount) return;
@@ -111,7 +132,7 @@ export default function Home() {
           {quoteStatus === 'ready' && (
             <StepTracker
               stage={flowStage}
-              failed={originSwap.status === 'failed'}
+              failed={originSwap.status === 'failed' || depositSigning.status === 'failed'}
               timestamps={settlement.settledAt ? { settled: settlement.settledAt } : undefined}
             />
           )}
@@ -191,7 +212,24 @@ export default function Home() {
                 <p role="status">Waiting for settlement, this can take a few minutes…</p>
               )}
 
-              {settlement.settled && <p role="status">Funds have landed in your Stellar account.</p>}
+              {settlement.settled && (
+                <>
+                  <p role="status">Funds have landed in your Stellar account.</p>
+                  <DepositSigningPanel
+                    status={depositSigning.status}
+                    errorMessage={depositSigning.errorMessage}
+                    vaultAddress={depositSigning.vaultAddress}
+                    amountInSmallestUnits={depositSigning.amountInSmallestUnits}
+                    minimumGuaranteedInSmallestUnits={depositSigning.minimumGuaranteedInSmallestUnits}
+                    secondsRemaining={depositSigning.secondsRemaining}
+                    requiredFeeXLM={depositSigning.requiredFeeXLM}
+                    availableXLM={depositSigning.availableXLM}
+                    rebuildAnnouncement={depositSigning.rebuildAnnouncement}
+                    txHash={depositSigning.txHash}
+                    onSign={depositSigning.sign}
+                  />
+                </>
+              )}
             </>
           )}
         </div>

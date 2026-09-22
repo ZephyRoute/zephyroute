@@ -64,6 +64,14 @@ describe('buildDepositTransaction', () => {
     expect(result.xdr).toBe(VALID_XDR);
   });
 
+  it('returns the vault address alongside the xdr, so the UI can render the real destination', async () => {
+    depositToVault.mockResolvedValue({ xdr: VALID_XDR });
+
+    const result = await buildDepositTransaction('GDEPOSITOR', '10000000');
+
+    expect(result.vaultAddress).toBe('CVAULTTESTADDRESS');
+  });
+
   it('rejects if DeFindex returns a response with no XDR at all', async () => {
     depositToVault.mockResolvedValue({ xdr: null });
 

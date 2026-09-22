@@ -47,7 +47,7 @@ export async function buildDepositTransaction(
   depositorAddress: string,
   amountInSmallestUnits: string,
   slippageBps = 100
-): Promise<{ xdr: ValidatedTransactionXDR }> {
+): Promise<{ xdr: ValidatedTransactionXDR; vaultAddress: string }> {
   const vaultAddress = requiredVaultAddress();
 
   let response;
@@ -67,6 +67,9 @@ export async function buildDepositTransaction(
   }
 
   // AC #3/#4: validated before ever being returned to a caller, never
-  // handed back as a raw, unvalidated string.
-  return { xdr: validateTransactionXDR(response.xdr) };
+  // handed back as a raw, unvalidated string. `vaultAddress` is
+  // returned alongside so the UI can render the real destination
+  // before the signature prompt (Story 1.10, AC #1) without needing
+  // its own copy of the server-only env var.
+  return { xdr: validateTransactionXDR(response.xdr), vaultAddress };
 }

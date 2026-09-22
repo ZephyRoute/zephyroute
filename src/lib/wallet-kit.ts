@@ -49,3 +49,59 @@ export function onWalletDisconnected(callback: () => void): () => void {
   initWalletKit();
   return StellarWalletsKit.on(KitEventType.DISCONNECT, callback);
 }
+
+export class DepositSigningError extends Error {
+  /**
+   * Distinguishes a mid-signature disconnect from an ordinary
+   * cancel/failure without the caller having to string-match the
+   * message (Story 1.10, AC #3: a disconnect must show an explicit
+   * reconnect state, never a generic failure).
+   */
+  readonly reason: 'disconnected' | 'cancelled';
+
+  constructor(message: string, reason: 'disconnected' | 'cancelled', options?: ErrorOptions) {
+    super(message, options);
+    this.reason = reason;
+  }
+}
+
+/**
+ * Story 1.10, AC #3: a disconnect mid-signature is detected via the
+ * kit's own DISCONNECT event racing the signature promise, never
+ * inferred from the promise's outcome alone, so a disconnect never
+ * reads as "signature succeeded" or "signature just failed".
+ */
+export async function signDepositTransaction(
+  xdr: string,
+  address: string
+): Promise<string> {
+  initWalletKit();
+  let disconnected = false;
+  const unsubscribe = onWalletDisconnected(() => {
+    disconnected = true;
+  });
+  try {
+    const { signedTxXdr } = await StellarWalletsKit.signTransaction(xdr, {
+      networkPassphrase: Networks.PUBLIC,
+      address,
+    });
+    if (disconnected) {
+      throw new DepositSigningError(
+        'Wallet disconnected before the signature completed.',
+        'disconnected'
+      );
+    }
+    return signedTxXdr;
+  } catch (cause) {
+    if (disconnected) {
+      throw new DepositSigningError(
+        'Wallet disconnected before the signature completed.',
+        'disconnected',
+        { cause }
+      );
+    }
+    throw new DepositSigningError('Signature was cancelled or failed.', 'cancelled', { cause });
+  } finally {
+    unsubscribe();
+  }
+}
