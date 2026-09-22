@@ -1,4 +1,5 @@
 import { getRedisClient } from '@/lib/redis';
+import type { ValidatedTransactionXDR } from '@/lib/types';
 
 /**
  * AC #3/FR10 groundwork: the settlement facts as they first become
@@ -43,6 +44,27 @@ export function validateCorrelationRecord(
   }
 
   return record as CorrelationRecord;
+}
+
+export class InvalidTransactionXDRError extends Error {}
+
+/**
+ * AC #3/#4: the only function in the codebase allowed to produce a
+ * `ValidatedTransactionXDR`. A base64-encoded Soroban transaction
+ * envelope XDR always starts with `AAAA` (the envelope type discriminant
+ * for `ENVELOPE_TYPE_TX`, 0 as a 4-byte big-endian XDR union tag), a
+ * real structural check, not just "is this a non-empty string".
+ */
+export function validateTransactionXDR(xdr: string): ValidatedTransactionXDR {
+  if (!xdr || typeof xdr !== 'string') {
+    throw new InvalidTransactionXDRError('Transaction XDR is missing or not a string.');
+  }
+  if (!xdr.startsWith('AAAA')) {
+    throw new InvalidTransactionXDRError(
+      'Transaction XDR does not look like a valid Soroban envelope (expected base64 starting with "AAAA").'
+    );
+  }
+  return xdr as ValidatedTransactionXDR;
 }
 
 /**
