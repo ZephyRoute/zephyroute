@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-const { getQuote } = vi.hoisted(() => ({ getQuote: vi.fn() }));
+const { getQuote, getHistory } = vi.hoisted(() => ({ getQuote: vi.fn(), getHistory: vi.fn() }));
 
 vi.mock('@defuse-protocol/one-click-sdk-typescript', async () => {
   const actual = await vi.importActual<
@@ -9,6 +9,7 @@ vi.mock('@defuse-protocol/one-click-sdk-typescript', async () => {
   return {
     ...actual,
     OneClickService: { getQuote },
+    AccountService: { getHistory },
   };
 });
 
@@ -17,6 +18,8 @@ import {
   QuoteRejectedError,
   QuoteRequestError,
   MissingIntegratorIdError,
+  findAttributedSettlement,
+  HistoryQueryError,
 } from './one-click-client';
 import { ApiError } from '@defuse-protocol/one-click-sdk-typescript';
 
@@ -104,5 +107,40 @@ describe('requestQuote', () => {
 
     await expect(requestQuote(baseParams)).rejects.toBeInstanceOf(MissingIntegratorIdError);
     expect(getQuote).not.toHaveBeenCalled();
+  });
+});
+
+describe('findAttributedSettlement', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('finds the history item matching this recipient address, ignoring unrelated ones (AC #9)', async () => {
+    getHistory.mockResolvedValue({
+      items: [
+        { recipient: 'GOTHERADDRESS', originAsset: 'nep141:eth.origin', amountOutFormatted: '1 USDC', createdAt: '2026-09-22T00:00:00Z' },
+        { recipient: 'GDEPOSITOR', originAsset: 'nep141:eth.origin', amountOutFormatted: '9.969 USDC', createdAt: '2026-09-22T00:05:00Z' },
+      ],
+    });
+
+    const result = await findAttributedSettlement('GDEPOSITOR');
+
+    expect(result).toEqual({
+      originChainAsset: 'nep141:eth.origin',
+      settledAmountFormatted: '9.969 USDC',
+      settledAt: '2026-09-22T00:05:00Z',
+    });
+  });
+
+  it('returns null when no history item matches this address, never fabricating one', async () => {
+    getHistory.mockResolvedValue({ items: [] });
+
+    expect(await findAttributedSettlement('GDEPOSITOR')).toBeNull();
+  });
+
+  it('wraps a query failure as HistoryQueryError, never a silent failure', async () => {
+    getHistory.mockRejectedValue(new Error('1Click is down'));
+
+    await expect(findAttributedSettlement('GDEPOSITOR')).rejects.toBeInstanceOf(HistoryQueryError);
   });
 });
