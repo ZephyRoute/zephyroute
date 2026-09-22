@@ -17,7 +17,23 @@ export interface UseEmbeddedWalletOnboardingResult {
   status: OnboardingStatus;
   errorMessage: string | null;
   stellarAddress: string | null;
+  /**
+   * Story 2.3: `true` specifically when the provider itself is not
+   * configured (the server's `ONBOARDING_NOT_CONFIGURED` code), never
+   * for an ordinary per-user failure (a declined passkey, a rejected
+   * transaction), so the caller can distinguish "show the manual
+   * fallback" from "let the user just try again".
+   */
+  providerUnavailable: boolean;
   onboard: (email: string, asset: AssetIdentifier) => Promise<string | null>;
+}
+
+class OnboardingRequestError extends Error {
+  readonly code: string | undefined;
+  constructor(message: string, code: string | undefined) {
+    super(message);
+    this.code = code;
+  }
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -28,7 +44,10 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   });
   const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload?.error?.message ?? 'Something went wrong. Try again.');
+    throw new OnboardingRequestError(
+      payload?.error?.message ?? 'Something went wrong. Try again.',
+      payload?.error?.code
+    );
   }
   return payload as T;
 }
@@ -46,10 +65,12 @@ export function useEmbeddedWalletOnboarding(): UseEmbeddedWalletOnboardingResult
   const [status, setStatus] = useState<OnboardingStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [stellarAddress, setStellarAddress] = useState<string | null>(null);
+  const [providerUnavailable, setProviderUnavailable] = useState(false);
 
   const onboard = useCallback(async (email: string, asset: AssetIdentifier) => {
     setStatus('registering');
     setErrorMessage(null);
+    setProviderUnavailable(false);
 
     try {
       const externalId = crypto.randomUUID();
@@ -106,6 +127,9 @@ export function useEmbeddedWalletOnboarding(): UseEmbeddedWalletOnboardingResult
       return registered.stellarAddress;
     } catch (cause) {
       setStatus('failed');
+      if (cause instanceof OnboardingRequestError && cause.code === 'ONBOARDING_NOT_CONFIGURED') {
+        setProviderUnavailable(true);
+      }
       setErrorMessage(
         cause instanceof PasskeyError || cause instanceof Error
           ? cause.message
@@ -115,5 +139,5 @@ export function useEmbeddedWalletOnboarding(): UseEmbeddedWalletOnboardingResult
     }
   }, []);
 
-  return { status, errorMessage, stellarAddress, onboard };
+  return { status, errorMessage, stellarAddress, providerUnavailable, onboard };
 }
