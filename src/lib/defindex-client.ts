@@ -73,3 +73,22 @@ export async function buildDepositTransaction(
   // its own copy of the server-only env var.
   return { xdr: validateTransactionXDR(response.xdr), vaultAddress };
 }
+
+export class VaultBalanceQueryError extends Error {}
+
+/**
+ * Story 1.11, AC #2: reads the depositor's real dfToken balance and
+ * underlying value back from the vault, the live on-chain state a
+ * deposit's confirmation is judged against, never DeFindex's own
+ * cached notion of "did the deposit succeed".
+ */
+export async function getDepositorVaultBalance(
+  vaultAddress: string,
+  depositorAddress: string
+): Promise<{ dfTokens: number; underlyingBalance: number[] }> {
+  try {
+    return await getSdk().getVaultBalance(vaultAddress, depositorAddress);
+  } catch (cause) {
+    throw new VaultBalanceQueryError('Could not read your vault balance. Try again.', { cause });
+  }
+}

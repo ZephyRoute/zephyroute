@@ -14,6 +14,15 @@ export interface CorrelationRecord {
   settledAt: string;
   integratorId: string;
   correlationId: string;
+  /**
+   * Added by Story 1.11, once the deposit itself confirms or reverts
+   * on-chain, completing FR10's record (no personally identifying
+   * data, per NFR7, a vault contract address and a status are not
+   * PII). Absent until then.
+   */
+  destinationVault?: string;
+  depositStatus?: 'completed' | 'reverted';
+  depositConfirmedAt?: string;
 }
 
 export class InvalidCorrelationRecordError extends Error {}
@@ -41,6 +50,19 @@ export function validateCorrelationRecord(
   }
   if (Number.isNaN(Date.parse(record.settledAt!))) {
     throw new InvalidCorrelationRecordError('settledAt must be a valid ISO timestamp.');
+  }
+  if (record.destinationVault !== undefined && !record.destinationVault) {
+    throw new InvalidCorrelationRecordError('destinationVault must be a non-empty string when present.');
+  }
+  if (
+    record.depositStatus !== undefined &&
+    record.depositStatus !== 'completed' &&
+    record.depositStatus !== 'reverted'
+  ) {
+    throw new InvalidCorrelationRecordError('depositStatus must be "completed" or "reverted" when present.');
+  }
+  if (record.depositConfirmedAt !== undefined && Number.isNaN(Date.parse(record.depositConfirmedAt))) {
+    throw new InvalidCorrelationRecordError('depositConfirmedAt must be a valid ISO timestamp when present.');
   }
 
   return record as CorrelationRecord;
@@ -77,4 +99,33 @@ export async function writeCorrelationRecord(record: Partial<CorrelationRecord>)
   const validated = validateCorrelationRecord(record);
   const redis = getRedisClient();
   await redis.set(`correlation:${validated.stellarAddress}`, JSON.stringify(validated));
+}
+
+export class CorrelationRecordNotFoundError extends Error {}
+
+/**
+ * Story 1.11: merges the deposit's outcome into the record Story 1.8
+ * already wrote for this address, re-validating the merged whole
+ * before persisting (AC #3), never appending an unvalidated partial.
+ * Rule #9 still applies, a failed update here is never treated as a
+ * failed deposit; the caller decides how to handle that.
+ */
+export async function updateCorrelationRecordWithDeposit(
+  stellarAddress: string,
+  update: {
+    destinationVault: string;
+    depositStatus: 'completed' | 'reverted';
+    depositConfirmedAt: string;
+  }
+): Promise<void> {
+  const redis = getRedisClient();
+  const key = `correlation:${stellarAddress}`;
+  const existing = await redis.get<CorrelationRecord>(key);
+  if (!existing) {
+    throw new CorrelationRecordNotFoundError(
+      `No correlation record found for ${stellarAddress} to update with the deposit outcome.`
+    );
+  }
+  const merged = validateCorrelationRecord({ ...existing, ...update });
+  await redis.set(key, JSON.stringify(merged));
 }

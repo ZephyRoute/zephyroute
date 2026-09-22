@@ -13,6 +13,7 @@ const BASE_PROPS = {
   availableXLM: null,
   rebuildAnnouncement: null,
   txHash: null,
+  dfTokens: null,
   onSign: vi.fn(),
 };
 
@@ -53,6 +54,34 @@ describe('DepositSigningPanel', () => {
     render(<DepositSigningPanel {...BASE_PROPS} status="disconnected" />);
 
     expect(screen.getByText(/disconnected before the signature completed/)).toBeInTheDocument();
+  });
+
+  it('labels submitted and confirming on-chain as two distinct states, never collapsed into one (AC #1)', () => {
+    const { rerender } = render(
+      <DepositSigningPanel {...BASE_PROPS} status="submitted" txHash="DEADBEEFCAFE" />
+    );
+    expect(screen.getByText(/Submitted\./)).toBeInTheDocument();
+
+    rerender(<DepositSigningPanel {...BASE_PROPS} status="confirming on-chain" txHash="DEADBEEFCAFE" />);
+    expect(screen.getByText(/Confirming on-chain/)).toBeInTheDocument();
+  });
+
+  it('shows the confirmed earning outcome on completed (AC #2)', () => {
+    render(<DepositSigningPanel {...BASE_PROPS} status="completed" dfTokens={100} />);
+
+    expect(screen.getByText(/now earning yield/)).toBeInTheDocument();
+  });
+
+  it('surfaces a revert explicitly with a clear next step, never a silent dead end (AC #3)', () => {
+    render(
+      <DepositSigningPanel
+        {...BASE_PROPS}
+        status="reverted"
+        errorMessage="The deposit was rejected on-chain, for example if the price moved past your slippage tolerance. You can try again."
+      />
+    );
+
+    expect(screen.getByText(/rejected on-chain/)).toBeInTheDocument();
   });
 
   it('surfaces the rebuild announcement inside the always-present aria-live region (AC #2)', () => {
