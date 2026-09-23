@@ -1,3 +1,4 @@
+import { Networks, TransactionBuilder } from '@stellar/stellar-sdk';
 import {
   completeWalletSignature,
   waitForWalletSignature,
@@ -12,6 +13,51 @@ import {
 } from '@/lib/onboarding-transaction';
 import { toErrorEnvelope } from '@/lib/error-envelope';
 import type { SignUserActionChallengeRequest } from '@dfns/sdk';
+
+export class OnboardingSignCompleteMismatchError extends Error {}
+
+/**
+ * Security review finding: `hashHex` was previously handed straight to
+ * DFNS with no proof it was actually this new account's real onboarding
+ * transaction, a signing oracle for this wallet's key. Re-derives the
+ * real hash server-side and requires it to match exactly, and confirms
+ * `stellarAddress` is genuinely the account `partiallySignedXdr` creates
+ * (the `createAccount` operation's own `destination`), not just trusted
+ * from the request body. Only a transaction that's actually what it
+ * claims to be, whose hash is exactly what's being asked to sign, ever
+ * reaches DFNS.
+ */
+function verifyOnboardingSignRequest(
+  partiallySignedXdr: string,
+  stellarAddress: string,
+  hashHex: string
+): void {
+  let transaction;
+  try {
+    transaction = TransactionBuilder.fromXDR(partiallySignedXdr, Networks.PUBLIC);
+  } catch (cause) {
+    throw new OnboardingSignCompleteMismatchError('Could not parse the onboarding transaction.', {
+      cause,
+    });
+  }
+  if (!('operations' in transaction)) {
+    throw new OnboardingSignCompleteMismatchError('Unexpected fee-bump onboarding transaction.');
+  }
+
+  const createAccountOp = transaction.operations.find((op) => op.type === 'createAccount');
+  if (!createAccountOp || createAccountOp.destination !== stellarAddress) {
+    throw new OnboardingSignCompleteMismatchError(
+      'The stellarAddress does not match the account this transaction creates.'
+    );
+  }
+
+  const realHashHex = Buffer.from(transaction.hash()).toString('hex');
+  if (realHashHex !== hashHex.toLowerCase()) {
+    throw new OnboardingSignCompleteMismatchError(
+      'The signature request does not match this onboarding transaction.'
+    );
+  }
+}
 
 interface SignCompleteBody {
   walletId: string;
@@ -62,6 +108,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    verifyOnboardingSignRequest(body.partiallySignedXdr, body.stellarAddress, body.hashHex);
+
     const initiated = await completeWalletSignature(
       body.walletId,
       body.hashHex,
@@ -85,6 +133,11 @@ export async function POST(request: Request): Promise<Response> {
     }
     return Response.json(submitted);
   } catch (cause) {
+    if (cause instanceof OnboardingSignCompleteMismatchError) {
+      return Response.json(toErrorEnvelope('ONBOARDING_HASH_MISMATCH', cause.message), {
+        status: 400,
+      });
+    }
     if (cause instanceof DfnsConfigError) {
       return Response.json(
         toErrorEnvelope('ONBOARDING_NOT_CONFIGURED', 'Account setup is not available yet.'),

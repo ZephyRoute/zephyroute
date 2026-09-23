@@ -10,6 +10,9 @@ import {
   attachDepositorSignatureAndSubmit,
   DepositSubmissionError,
 } from '@/lib/deposit-dfns-signing';
+import { inspectDepositTransaction, DepositXDRInspectionError } from '@/lib/deposit-xdr-inspector';
+import { requiredVaultAddress, DepositBuildError } from '@/lib/defindex-client';
+import { validateTransactionXDR, InvalidTransactionXDRError } from '@/lib/validation';
 import { toErrorEnvelope } from '@/lib/error-envelope';
 import type { SignUserActionChallengeRequest } from '@dfns/sdk';
 
@@ -66,6 +69,32 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    // Security review finding: `hashHex` was previously handed straight
+    // to DFNS with no proof it was actually this depositor's real
+    // deposit transaction, a signing oracle for this wallet's key.
+    // Re-derives the real hash server-side (the same computation
+    // `inspectDepositTransaction` already does and this project already
+    // trusts client-side) and requires it to match exactly, plus the
+    // same vault/function/authorization checks the client already runs,
+    // now enforced here too since a direct API call bypasses the client
+    // entirely. Only a genuinely well-formed deposit to this server's
+    // own configured vault, authorized by this depositor, whose hash is
+    // exactly what's being asked to sign, ever reaches DFNS.
+    const validatedXdr = validateTransactionXDR(body.unsignedXdr);
+    const info = inspectDepositTransaction(validatedXdr, {
+      vaultAddress: requiredVaultAddress(),
+      depositorAddress: body.depositorAddress,
+    });
+    if (info.transactionHashHex !== body.hashHex.toLowerCase()) {
+      return Response.json(
+        toErrorEnvelope(
+          'DEPOSIT_HASH_MISMATCH',
+          'The signature request does not match this deposit transaction.'
+        ),
+        { status: 400 }
+      );
+    }
+
     const initiated = await completeWalletSignature(
       body.walletId,
       body.hashHex,
@@ -80,7 +109,12 @@ export async function POST(request: Request): Promise<Response> {
     );
     return Response.json(submitted);
   } catch (cause) {
-    if (cause instanceof DfnsConfigError) {
+    if (cause instanceof InvalidTransactionXDRError || cause instanceof DepositXDRInspectionError) {
+      return Response.json(toErrorEnvelope('DEPOSIT_HASH_MISMATCH', cause.message), {
+        status: 400,
+      });
+    }
+    if (cause instanceof DfnsConfigError || cause instanceof DepositBuildError) {
       return Response.json(
         toErrorEnvelope('DFNS_NOT_CONFIGURED', 'DFNS signing is not available right now.'),
         { status: 503 }
