@@ -8,6 +8,15 @@ export interface AccountSetupForkProps {
   errorMessage: string | null;
   stellarAddress: string | null;
   onCreateAccount: (email: string) => void;
+  /**
+   * Issue #16, gap #1: this fork is now reachable from two different
+   * moments, a connected wallet that's missing the destination
+   * trustline (Story 1.7/2.1's original trigger) or a visitor who
+   * hasn't connected any wallet at all yet. Same mechanism, different
+   * framing, so the explanation never implies a wallet the user never
+   * connected, or a destination they haven't reached yet.
+   */
+  context?: 'missing-trustline' | 'no-wallet';
 }
 
 const STATUS_LABEL: Record<Exclude<OnboardingStatus, 'idle' | 'failed' | 'completed'>, string> = {
@@ -30,6 +39,7 @@ export function AccountSetupFork({
   errorMessage,
   stellarAddress,
   onCreateAccount,
+  context = 'missing-trustline',
 }: AccountSetupForkProps) {
   const [email, setEmail] = useState('');
   const inProgress = status !== 'idle' && status !== 'failed' && status !== 'completed';
@@ -40,10 +50,10 @@ export function AccountSetupFork({
         Setting up your Stellar account
       </p>
       <p className={styles.explanation}>
-        You don&apos;t have a Stellar account with the trustline this destination needs yet.
-        We&apos;re routing you through a quick account setup step first, then you&apos;ll
-        continue straight into your quote. Your new wallet is controlled by your own passkey,
-        never by Zephyroute.
+        {context === 'no-wallet'
+          ? "Don't have a Stellar wallet? We can set one up for you in a few seconds, no app to install."
+          : "You don't have a Stellar account with the trustline this destination needs yet. We're routing you through a quick account setup step first, then you'll continue straight into your quote."}{' '}
+        Your new wallet is controlled by your own passkey, never by Zephyroute.
       </p>
 
       {(status === 'idle' || status === 'failed') && (

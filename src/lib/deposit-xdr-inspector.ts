@@ -6,6 +6,16 @@ export class DepositXDRInspectionError extends Error {}
 export interface DepositTransactionInfo {
   signatureExpirationLedger: number;
   feeStroops: string;
+  transactionHashHex: string;
+}
+
+/**
+ * No `Buffer` here, this module runs client-side (imported into
+ * `useDepositSigning.ts`, a `'use client'` hook), and this project's
+ * Next.js bundling doesn't polyfill it in the browser.
+ */
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -42,5 +52,6 @@ export function inspectDepositTransaction(
   return {
     signatureExpirationLedger: Math.min(...expirations),
     feeStroops: parsed.fee,
+    transactionHashHex: bytesToHex(parsed.hash()),
   };
 }

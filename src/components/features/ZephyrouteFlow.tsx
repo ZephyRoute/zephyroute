@@ -8,14 +8,13 @@ import { StepTracker } from '@/components/features/StepTracker';
 import { DepositSigningPanel } from '@/components/features/DepositSigningPanel';
 import { AccountSetupFork } from '@/components/features/AccountSetupFork';
 import { ManualFundingFallback } from '@/components/features/ManualFundingFallback';
-import { useWallet } from '@/lib/hooks/useWallet';
+import { useActiveIdentity } from '@/lib/hooks/useActiveIdentity';
 import { useQuote } from '@/lib/hooks/useQuote';
 import { useTrustlineCheck } from '@/lib/hooks/useTrustlineCheck';
 import { useOriginSwap } from '@/lib/hooks/useOriginSwap';
 import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
 import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
 import { useCorrelationResume } from '@/lib/hooks/useCorrelationResume';
-import { useEmbeddedWalletOnboarding } from '@/lib/hooks/useEmbeddedWalletOnboarding';
 import { getAssetBalance } from '@/lib/horizon';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 import type { FlowStage } from '@/lib/types';
@@ -38,13 +37,15 @@ import type { FlowStage } from '@/lib/types';
  * confirmed.
  */
 export function ZephyrouteFlow() {
-  const { address, status: walletStatus, errorMessage: walletError, connect } = useWallet();
+  const identity = useActiveIdentity();
+  const { address, status: walletStatus, errorMessage: walletError } = identity;
+  const { connect } = identity.wallet;
+  const onboarding = identity.onboarding;
   const { quote, status: quoteStatus, errorMessage: quoteError, requestQuoteFor } = useQuote();
   const trustline = useTrustlineCheck();
   const originSwap = useOriginSwap();
   const depositSigning = useDepositSigning();
   const resume = useCorrelationResume();
-  const onboarding = useEmbeddedWalletOnboarding();
   const [routeIndex, setRouteIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [baselineBalance, setBaselineBalance] = useState<string | null>(null);
@@ -73,8 +74,10 @@ export function ZephyrouteFlow() {
       depositorAddress: address,
       amountInSmallestUnits: resume.resumableDeposit.settledAmount,
       slippageBps: 100,
+      signingSource: identity.source ?? undefined,
+      dfnsWalletId: identity.dfnsWalletId ?? undefined,
     });
-  }, [resume.status, resume.resumableDeposit, address, depositSigning]);
+  }, [resume.status, resume.resumableDeposit, address, depositSigning, identity.source, identity.dfnsWalletId]);
 
   const settlement = useSettlementStatus({
     accountId: address ?? '',
@@ -118,8 +121,10 @@ export function ZephyrouteFlow() {
       depositorAddress: address,
       amountInSmallestUnits: quote.quote.amountOut,
       slippageBps: 100,
+      signingSource: identity.source ?? undefined,
+      dfnsWalletId: identity.dfnsWalletId ?? undefined,
     });
-  }, [settlement.settled, address, quote, depositSigning]);
+  }, [settlement.settled, address, quote, depositSigning, identity.source, identity.dfnsWalletId]);
 
   const flowStage: FlowStage = !quote
     ? 'quoted'
@@ -187,9 +192,26 @@ export function ZephyrouteFlow() {
       <h1>Zephyroute</h1>
 
       {walletStatus !== 'connected' && (
-        <Button onClick={connect} disabled={walletStatus === 'connecting'}>
-          {walletStatus === 'connecting' ? 'Connecting…' : 'Connect wallet'}
-        </Button>
+        <>
+          <Button onClick={connect} disabled={walletStatus === 'connecting'}>
+            {walletStatus === 'connecting' ? 'Connecting…' : 'Connect wallet'}
+          </Button>
+
+          {/* Issue #16, gap #1: reachable before any wallet is
+              connected at all, a visitor with zero Stellar wallet
+              software installed could never reach this fork before,
+              since it only ever rendered after a missing-trustline
+              check that itself required an already-connected address. */}
+          {!onboarding.providerUnavailable && (
+            <AccountSetupFork
+              context="no-wallet"
+              status={onboarding.status}
+              errorMessage={onboarding.errorMessage}
+              stellarAddress={onboarding.stellarAddress}
+              onCreateAccount={(email) => onboarding.onboard(email, route.stellarAsset)}
+            />
+          )}
+        </>
       )}
 
       {walletStatus === 'connected' && address && <p role="status">Connected: {address}</p>}
