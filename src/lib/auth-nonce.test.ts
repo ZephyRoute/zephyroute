@@ -3,6 +3,8 @@ import { Keypair } from '@stellar/stellar-sdk';
 import {
   buildCorrelationReadChallenge,
   verifyCorrelationReadProof,
+  buildCorrelationWriteChallenge,
+  verifyCorrelationWriteProof,
   InvalidProofError,
 } from './auth-nonce';
 
@@ -71,5 +73,60 @@ describe('verifyCorrelationReadProof', () => {
     expect(() =>
       verifyCorrelationReadProof(keypair.publicKey(), message, Buffer.alloc(64).toString('base64'))
     ).toThrow(InvalidProofError);
+  });
+});
+
+describe('buildCorrelationWriteChallenge / verifyCorrelationWriteProof (security review follow-on)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('accepts a real SEP-53 signature over the exact fixed write challenge', () => {
+    const keypair = Keypair.random();
+    const message = buildCorrelationWriteChallenge();
+    const signature = sign(keypair, message);
+
+    expect(() => verifyCorrelationWriteProof(keypair.publicKey(), message, signature)).not.toThrow();
+  });
+
+  it('rejects a signature from a different address than the one claimed', () => {
+    const signer = Keypair.random();
+    const claimedAddress = Keypair.random().publicKey();
+    const message = buildCorrelationWriteChallenge();
+    const signature = sign(signer, message);
+
+    expect(() => verifyCorrelationWriteProof(claimedAddress, message, signature)).toThrow(
+      InvalidProofError
+    );
+  });
+
+  it(
+    'never accepts a signed READ challenge as a valid WRITE proof, and vice versa: a captured ' +
+      'read-proof (the review flagged it can leak via the URL) must not authorize a write',
+    () => {
+      const keypair = Keypair.random();
+      const readMessage = buildCorrelationReadChallenge();
+      const readSignature = sign(keypair, readMessage);
+      const writeMessage = buildCorrelationWriteChallenge();
+      const writeSignature = sign(keypair, writeMessage);
+
+      expect(() =>
+        verifyCorrelationWriteProof(keypair.publicKey(), readMessage, readSignature)
+      ).toThrow(InvalidProofError);
+      expect(() =>
+        verifyCorrelationReadProof(keypair.publicKey(), writeMessage, writeSignature)
+      ).toThrow(InvalidProofError);
+    }
+  );
+
+  it('rejects a stale write challenge outside the clock-skew window', () => {
+    const keypair = Keypair.random();
+    const staleTimestamp = Math.floor(Date.now() / 1000) - 3600;
+    const message = `zephyroute:correlation-write:${staleTimestamp}`;
+    const signature = sign(keypair, message);
+
+    expect(() => verifyCorrelationWriteProof(keypair.publicKey(), message, signature)).toThrow(
+      InvalidProofError
+    );
   });
 });
