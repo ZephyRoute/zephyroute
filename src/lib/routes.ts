@@ -23,7 +23,7 @@ import type { AssetIdentifier } from '@/lib/horizon';
  * EVM chain is offered), left `undefined` for Bitcoin since it never
  * reaches the EVM signing path at all.
  */
-export type OriginChain = 'ethereum' | 'arbitrum' | 'base' | 'bitcoin';
+export type OriginChain = 'ethereum' | 'arbitrum' | 'base' | 'solana' | 'bitcoin';
 
 export interface SupportedRoute {
   label: string;
@@ -32,6 +32,15 @@ export interface SupportedRoute {
   originContract?: `0x${string}`;
   originDecimals: number;
   chainId?: number;
+  /**
+   * The SPL token mint address (base58), Solana routes only. Not
+   * derived from 1Click's own asset ID (`sol-<hex>`, an internal omni-
+   * bridge identifier scheme, not the raw mint address in any
+   * recognizable encoding), independently verified against Jupiter's
+   * token registry (`lite-api.jup.ag/tokens/v2/search`) instead, the
+   * canonical, widely-used Circle USDC mint on Solana mainnet.
+   */
+  solanaMint?: string;
   destinationAsset: string;
   stellarAsset: AssetIdentifier;
 }
@@ -87,6 +96,25 @@ export const SUPPORTED_ROUTES: SupportedRoute[] = [
     originContract: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
     originDecimals: 6,
     chainId: 8453,
+    destinationAsset: 'nep245:v2_1.omni.hot.tg:1100_111bzQBB65GxAPAVoxqmMcgYo5oS3txhqs1Uh1cgahKQUeTUq1TJu',
+    stellarAsset: STELLAR_USDC,
+  },
+  {
+    /**
+     * Solana confirmed live the same pass as Base (2026-09-22, PRD Open
+     * Question 3), verified the identical way: a real `dry: true` quote
+     * against 1Click's production `/v0/quote` endpoint (correlation ID
+     * `3255484a-a39c-47c5-9de9-872c03fb39c0`) returned a fully priced,
+     * signed quote. Unlike Base, Solana isn't EVM-compatible, so this
+     * route signs via the Wallet Standard (`lib/solana-wallet.ts`), not
+     * `wagmi`; `originContract`/`chainId` stay unset (EVM-only fields),
+     * `solanaMint` carries the real SPL mint address instead.
+     */
+    label: 'Solana USDC to Stellar USDC',
+    originAsset: 'nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near',
+    originChain: 'solana',
+    originDecimals: 6,
+    solanaMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     destinationAsset: 'nep245:v2_1.omni.hot.tg:1100_111bzQBB65GxAPAVoxqmMcgYo5oS3txhqs1Uh1cgahKQUeTUq1TJu',
     stellarAsset: STELLAR_USDC,
   },

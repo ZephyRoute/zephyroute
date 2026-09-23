@@ -1,13 +1,25 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
-const { useAccount, useConnect, useSendTransaction } = vi.hoisted(() => ({
+const {
+  useAccount,
+  useConnect,
+  useSendTransaction,
+  connectSolanaWallet,
+  signAndSendSolanaTransaction,
+  buildSolanaSwapTransaction,
+} = vi.hoisted(() => ({
   useAccount: vi.fn(),
   useConnect: vi.fn(),
   useSendTransaction: vi.fn(),
+  connectSolanaWallet: vi.fn(),
+  signAndSendSolanaTransaction: vi.fn(),
+  buildSolanaSwapTransaction: vi.fn(),
 }));
 
 vi.mock('wagmi', () => ({ useAccount, useConnect, useSendTransaction }));
+vi.mock('@/lib/solana-wallet', () => ({ connectSolanaWallet, signAndSendSolanaTransaction }));
+vi.mock('@/lib/solana-swap', () => ({ buildSolanaSwapTransaction }));
 
 const { useOriginSwap } = await import('./useOriginSwap');
 
@@ -93,5 +105,49 @@ describe('useOriginSwap', () => {
 
     expect(result.current.status).toBe('failed');
     expect(result.current.errorMessage).toBe('User rejected the request');
+  });
+
+  it('dispatches a Solana route to the Wallet Standard path, never wagmi (Issue: Solana origin support)', async () => {
+    useAccount.mockReturnValue({ address: undefined, isConnected: false });
+    const solanaRoute = SUPPORTED_ROUTES.find((r) => r.originChain === 'solana')!;
+    connectSolanaWallet.mockResolvedValue({ address: 'GSOLANADEPOSITOR' });
+    buildSolanaSwapTransaction.mockResolvedValue(new Uint8Array([1, 2, 3]));
+    signAndSendSolanaTransaction.mockResolvedValue('5SigBase58');
+
+    const { result } = renderHook(() => useOriginSwap());
+
+    await act(async () => {
+      await result.current.signAndSubmit(solanaRoute, 'GSOLANADEPOSITADDRESS', '10000000');
+    });
+
+    expect(connectSolanaWallet).toHaveBeenCalledOnce();
+    expect(buildSolanaSwapTransaction).toHaveBeenCalledWith(
+      solanaRoute,
+      'GSOLANADEPOSITOR',
+      'GSOLANADEPOSITADDRESS',
+      '10000000'
+    );
+    expect(signAndSendSolanaTransaction).toHaveBeenCalledOnce();
+    expect(connectAsync).not.toHaveBeenCalled();
+    expect(sendTransactionAsync).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('submitted');
+    expect(result.current.txHash).toBe('5SigBase58');
+  });
+
+  it('surfaces a failed Solana wallet connection explicitly, never a silent failure', async () => {
+    useAccount.mockReturnValue({ address: undefined, isConnected: false });
+    const solanaRoute = SUPPORTED_ROUTES.find((r) => r.originChain === 'solana')!;
+    connectSolanaWallet.mockRejectedValue(new Error('No Solana wallet extension detected.'));
+
+    const { result } = renderHook(() => useOriginSwap());
+
+    await act(async () => {
+      await expect(
+        result.current.signAndSubmit(solanaRoute, 'GSOLANADEPOSITADDRESS', '10000000')
+      ).rejects.toThrow();
+    });
+
+    expect(result.current.status).toBe('failed');
+    expect(result.current.errorMessage).toBe('No Solana wallet extension detected.');
   });
 });

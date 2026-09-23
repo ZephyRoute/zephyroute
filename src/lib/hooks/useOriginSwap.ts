@@ -20,10 +20,42 @@ export function useOriginSwap() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
+  const signAndSubmitSolana = useCallback(
+    async (route: SupportedRoute, depositAddress: string, amountInSmallestUnits: string) => {
+      // Dynamically imported: Solana's web3.js/spl-token/wallet-standard
+      // stack is a real, meaningful chunk of bundle weight (the same
+      // Issue #25 lesson already applied to the DFNS SDK), only worth
+      // loading for a session that actually selects a Solana route,
+      // never at module load time for every session regardless.
+      const [{ connectSolanaWallet, signAndSendSolanaTransaction }, { buildSolanaSwapTransaction }] =
+        await Promise.all([import('@/lib/solana-wallet'), import('@/lib/solana-swap')]);
+
+      setStatus('connecting');
+      const account = await connectSolanaWallet();
+
+      setStatus('signing');
+      const serializedTransaction = await buildSolanaSwapTransaction(
+        route,
+        account.address,
+        depositAddress,
+        amountInSmallestUnits
+      );
+      const signature = await signAndSendSolanaTransaction(account, serializedTransaction);
+      setTxHash(signature);
+      setStatus('submitted');
+      return signature;
+    },
+    []
+  );
+
   const signAndSubmit = useCallback(
     async (route: SupportedRoute, depositAddress: string, amountInSmallestUnits: string) => {
       setErrorMessage(null);
       try {
+        if (route.originChain === 'solana') {
+          return await signAndSubmitSolana(route, depositAddress, amountInSmallestUnits);
+        }
+
         if (!isConnected) {
           setStatus('connecting');
           const connector = connectors[0];
@@ -53,7 +85,7 @@ export function useOriginSwap() {
         throw error;
       }
     },
-    [isConnected, connectors, connectAsync, sendTransactionAsync]
+    [isConnected, connectors, connectAsync, sendTransactionAsync, signAndSubmitSolana]
   );
 
   return { status, errorMessage, txHash, evmAddress, signAndSubmit };
