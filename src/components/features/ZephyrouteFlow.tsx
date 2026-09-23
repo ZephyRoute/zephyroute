@@ -15,6 +15,7 @@ import { useOriginSwap } from '@/lib/hooks/useOriginSwap';
 import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
 import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
 import { useCorrelationResume } from '@/lib/hooks/useCorrelationResume';
+import { buildCorrelationWriteChallenge } from '@/lib/auth-nonce';
 import { getAssetBalance } from '@/lib/horizon';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 import type { FlowStage } from '@/lib/types';
@@ -61,8 +62,8 @@ export function ZephyrouteFlow() {
   useEffect(() => {
     if (!address || resumeCheckedRef.current) return;
     resumeCheckedRef.current = true;
-    resume.check(address);
-  }, [address, resume]);
+    resume.check(address, identity.signMessage);
+  }, [address, resume, identity.signMessage]);
 
   // AC #1: resumed directly at the deposit-signing step, never asked
   // to re-quote or re-sign the origin-chain swap.
@@ -91,25 +92,43 @@ export function ZephyrouteFlow() {
   // through /api/correlation rather than lib/validation.ts's
   // writeCorrelationRecord directly, that carries the Upstash Redis
   // REST token, a secret that must never reach client code (Issue #7).
+  //
+  // Security review finding: the route now requires proof the caller
+  // controls `address` (a signed `zephyroute:correlation-write:`
+  // challenge, `lib/auth-nonce.ts`) before persisting anything,
+  // previously anyone could forge any address's record. This adds a
+  // signature prompt to a moment that was previously silent/automatic,
+  // a real, deliberate product tradeoff against the "two signatures"
+  // framing used elsewhere (the origin-chain swap and the deposit),
+  // flagged explicitly rather than shipped quietly.
   useEffect(() => {
     if (!settlement.settled || correlationWrittenRef.current || !address || !quote) return;
     correlationWrittenRef.current = true;
-    fetch('/api/correlation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        stellarAddress: address,
-        originChainAsset: route.originAsset,
-        settledAmount: quote.quote.amountOut,
-        settledAt: settlement.settledAt ?? new Date().toISOString(),
-        integratorId: 'zephyroute',
-        correlationId: quote.correlationId,
-      }),
-    }).catch(() => {
-      // Rule #9: a failed cache write is never treated as a failed
-      // settlement, the user's funds already arrived regardless.
-    });
-  }, [settlement.settled, settlement.settledAt, address, quote, route.originAsset]);
+    (async () => {
+      try {
+        const message = buildCorrelationWriteChallenge();
+        const signature = await identity.signMessage(message);
+        await fetch('/api/correlation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stellarAddress: address,
+            originChainAsset: route.originAsset,
+            settledAmount: quote.quote.amountOut,
+            settledAt: settlement.settledAt ?? new Date().toISOString(),
+            integratorId: 'zephyroute',
+            correlationId: quote.correlationId,
+            message,
+            signature,
+          }),
+        });
+      } catch {
+        // Rule #9: a failed cache write (or a declined write-proof
+        // signature) is never treated as a failed settlement, the
+        // user's funds already arrived regardless.
+      }
+    })();
+  }, [settlement.settled, settlement.settledAt, address, quote, route.originAsset, identity]);
 
   // Story 1.10: the deposit XDR is built on-demand the moment
   // settlement is confirmed, never speculatively ahead of it
@@ -182,7 +201,7 @@ export function ZephyrouteFlow() {
       rebuildAnnouncement={depositSigning.rebuildAnnouncement}
       txHash={depositSigning.txHash}
       dfTokens={depositSigning.dfTokens}
-      onSign={depositSigning.sign}
+      onSign={() => depositSigning.sign(identity.signMessage)}
     />
   );
 

@@ -67,8 +67,11 @@ function mockHealthyBuild() {
 }
 
 describe('useDepositSigning', () => {
+  const signMessage = vi.fn().mockResolvedValue('c2ln');
+
   beforeEach(() => {
     vi.clearAllMocks();
+    signMessage.mockResolvedValue('c2ln');
     vi.setSystemTime(Date.parse('2026-09-22T00:00:00Z'));
   });
 
@@ -89,6 +92,12 @@ describe('useDepositSigning', () => {
     expect(result.current.amountInSmallestUnits).toBe('10000000');
     expect(result.current.minimumGuaranteedInSmallestUnits).toBe('9900000');
     expect(result.current.secondsRemaining).toBeGreaterThan(0);
+    // Security review finding: inspected against the real requested
+    // vault and this depositor's own address, not just parsed blindly.
+    expect(inspectDepositTransaction).toHaveBeenCalledWith(VALID_XDR, {
+      vaultAddress: 'CVAULT',
+      depositorAddress: 'GDEPOSITOR',
+    });
   });
 
   it('stops at insufficient-fee before ever reaching a signature prompt, per AC #4', async () => {
@@ -135,7 +144,7 @@ describe('useDepositSigning', () => {
     await waitFor(() => expect(result.current.status).toBe('ready-to-sign'));
 
     await act(async () => {
-      await result.current.sign();
+      await result.current.sign(signMessage);
     });
 
     expect(result.current.txHash).toBe('DEADBEEF');
@@ -174,7 +183,7 @@ describe('useDepositSigning', () => {
     });
     await waitFor(() => expect(result.current.status).toBe('ready-to-sign'));
     await act(async () => {
-      await result.current.sign();
+      await result.current.sign(signMessage);
     });
 
     expect(result.current.status).toBe('confirming on-chain');
@@ -188,6 +197,18 @@ describe('useDepositSigning', () => {
 
     expect(result.current.status).toBe('completed');
     expect(result.current.dfTokens).toBe(100);
+
+    // Security review finding: the deposit-completion write now also
+    // requires a signed correlation write-proof, not an open write.
+    expect(signMessage).toHaveBeenCalledWith(
+      expect.stringMatching(/^zephyroute:correlation-write:\d+$/)
+    );
+    const patchCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'PATCH');
+    const patchBody = JSON.parse((patchCall?.[1] as RequestInit).body as string);
+    expect(patchBody.signature).toBe('c2ln');
+    expect(patchBody.message).toMatch(/^zephyroute:correlation-write:\d+$/);
   });
 
   it('reports an explicit reverted state, distinct from a submission failure, per AC #3', async () => {
@@ -202,7 +223,7 @@ describe('useDepositSigning', () => {
     await waitFor(() => expect(result.current.status).toBe('ready-to-sign'));
 
     await act(async () => {
-      await result.current.sign();
+      await result.current.sign(signMessage);
     });
 
     await waitFor(() => expect(result.current.status).toBe('reverted'));
@@ -221,7 +242,7 @@ describe('useDepositSigning', () => {
     await waitFor(() => expect(result.current.status).toBe('ready-to-sign'));
 
     await act(async () => {
-      await result.current.sign();
+      await result.current.sign(signMessage);
     });
 
     await waitFor(() => expect(result.current.status).toBe('disconnected'));
