@@ -20,6 +20,9 @@ export type DepositSigningStatus =
   | 'disconnected'
   | 'submitting'
   | 'submitted'
+  | 'confirming on-chain'
+  | 'completed'
+  | 'reverted'
   | 'failed';
 
 export interface DepositSigningParams {
@@ -39,17 +42,37 @@ export interface UseDepositSigningResult {
   availableXLM: string | null;
   rebuildAnnouncement: string | null;
   txHash: string | null;
+  dfTokens: number | null;
   start: (params: DepositSigningParams) => Promise<void>;
   sign: () => Promise<void>;
 }
 
 const RESYNC_INTERVAL_MS = 20000;
+const CONFIRMATION_POLL_INTERVAL_MS = 5000;
 const DEFAULT_SLIPPAGE_BPS = 100;
 
 function computeMinimumGuaranteed(amountInSmallestUnits: string, slippageBps: number): string {
   const amount = BigInt(amountInSmallestUnits);
   const remainingBps = BigInt(10000 - slippageBps);
   return ((amount * remainingBps) / BigInt(10000)).toString();
+}
+
+interface VaultBalance {
+  dfTokens: number;
+  underlyingBalance: number[];
+}
+
+async function fetchVaultBalance(
+  vaultAddress: string,
+  depositorAddress: string
+): Promise<VaultBalance> {
+  const params = new URLSearchParams({ vaultAddress, depositorAddress });
+  const response = await fetch(`/api/deposit/balance?${params.toString()}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.error?.message ?? 'Could not read your vault balance.');
+  }
+  return payload as VaultBalance;
 }
 
 /**
@@ -71,10 +94,23 @@ export function useDepositSigning(): UseDepositSigningResult {
   const [availableXLM, setAvailableXLM] = useState<string | null>(null);
   const [rebuildAnnouncement, setRebuildAnnouncement] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [dfTokens, setDfTokens] = useState<number | null>(null);
 
   const paramsRef = useRef<DepositSigningParams | null>(null);
   const xdrRef = useRef<ValidatedTransactionXDR | null>(null);
   const expirationLedgerRef = useRef<number | null>(null);
+  const baselineDfTokensRef = useRef<number | null>(null);
+  const vaultAddressRef = useRef<string | null>(null);
+  const confirmationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
+
+  useEffect(
+    () => () => {
+      unmountedRef.current = true;
+      if (confirmationTimeoutRef.current) clearTimeout(confirmationTimeoutRef.current);
+    },
+    []
+  );
 
   const buildAndCheck = useCallback(async (params: DepositSigningParams) => {
     setStatus('building');
@@ -106,6 +142,7 @@ export function useDepositSigning(): UseDepositSigningResult {
     }
 
     xdrRef.current = xdr;
+    vaultAddressRef.current = responseVaultAddress;
     setVaultAddress(responseVaultAddress);
     setAmount(params.amountInSmallestUnits);
     setMinimumGuaranteed(
@@ -131,16 +168,23 @@ export function useDepositSigning(): UseDepositSigningResult {
 
     let timing;
     let xlmBalance;
+    let baselineBalance: VaultBalance;
     try {
-      [timing, xlmBalance] = await Promise.all([
+      [timing, xlmBalance, baselineBalance] = await Promise.all([
         getLedgerTiming(),
         getAssetBalance(params.depositorAddress, { code: 'XLM' }),
+        fetchVaultBalance(responseVaultAddress, params.depositorAddress),
       ]);
     } catch (cause) {
       setStatus('failed');
       setErrorMessage(cause instanceof Error ? cause.message : 'Could not check your account.');
       return;
     }
+    // Story 1.11, AC #2: confirmation is judged against the depositor's
+    // real pre-deposit dfToken balance, an increase over this baseline,
+    // never just "any balance present" (the same discipline Story 1.8
+    // already applied to origin-chain settlement detection).
+    baselineDfTokensRef.current = baselineBalance.dfTokens;
 
     const feeXLM = (Number(feeStroops) / 1e7).toString();
     const balanceXLM = xlmBalance?.balance ?? '0';
@@ -208,6 +252,53 @@ export function useDepositSigning(): UseDepositSigningResult {
     };
   }, [status, expiresAtMs, buildAndCheck]);
 
+  // Story 1.11, AC #1/#2: `submitted` and `confirming on-chain` are
+  // rendered as two distinct, visibly labeled states, never collapsed
+  // into one; confirmation is judged against the real, independently
+  // queryable dfToken balance, and its outcome is folded into the
+  // correlation record Story 1.8 already wrote (AC #4). Driven
+  // directly from `sign`, not a `useEffect` keyed on `status`: this
+  // function's own `setStatus('confirming on-chain')` would otherwise
+  // immediately retrigger and tear down such an effect before its
+  // interval ever got to fire a second time.
+  const confirmDeposit = useCallback((vault: string, depositorAddress: string) => {
+    setStatus('confirming on-chain');
+    const baseline = baselineDfTokensRef.current ?? 0;
+
+    const poll = async () => {
+      try {
+        const balance = await fetchVaultBalance(vault, depositorAddress);
+        if (unmountedRef.current) return;
+        if (balance.dfTokens > baseline) {
+          setDfTokens(balance.dfTokens);
+          setStatus('completed');
+          fetch('/api/correlation', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              stellarAddress: depositorAddress,
+              destinationVault: vault,
+              depositStatus: 'completed',
+              depositConfirmedAt: new Date().toISOString(),
+            }),
+          }).catch(() => {
+            // Rule #9: a failed cache update is never treated as a
+            // failed deposit, the funds are already confirmed earning.
+          });
+          return;
+        }
+      } catch {
+        // A transient poll failure doesn't fail the deposit, the next
+        // poll tries again rather than giving up on a real confirmation.
+      }
+      if (!unmountedRef.current) {
+        confirmationTimeoutRef.current = setTimeout(poll, CONFIRMATION_POLL_INTERVAL_MS);
+      }
+    };
+
+    poll();
+  }, []);
+
   const sign = useCallback(async () => {
     const xdr = xdrRef.current;
     const params = paramsRef.current;
@@ -232,18 +323,28 @@ export function useDepositSigning(): UseDepositSigningResult {
     setStatus('submitting');
     try {
       const submitted = await submitDepositTransaction(signedXdr);
+      setTxHash(submitted.hash);
       if (!submitted.successful) {
-        setStatus('failed');
-        setErrorMessage('The deposit transaction was rejected by the network.');
+        // Story 1.11, AC #3: the transaction reached a ledger but its
+        // own invocation failed on-chain (for example, slippage
+        // exceeded), a distinct outcome from a submission-level
+        // failure, surfaced as its own explicit state, never a
+        // collapsed generic "failed".
+        setStatus('reverted');
+        setErrorMessage(
+          'The deposit was rejected on-chain, for example if the price moved past your slippage tolerance. You can try again.'
+        );
         return;
       }
-      setTxHash(submitted.hash);
       setStatus('submitted');
+      if (vaultAddressRef.current) {
+        confirmDeposit(vaultAddressRef.current, params.depositorAddress);
+      }
     } catch (cause) {
       setStatus('failed');
       setErrorMessage(cause instanceof Error ? cause.message : 'Could not submit the deposit.');
     }
-  }, []);
+  }, [confirmDeposit]);
 
   return {
     status,
@@ -256,6 +357,7 @@ export function useDepositSigning(): UseDepositSigningResult {
     availableXLM,
     rebuildAnnouncement,
     txHash,
+    dfTokens,
     start: buildAndCheck,
     sign,
   };

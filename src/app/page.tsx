@@ -81,7 +81,7 @@ export default function Home() {
       ? 'quoted'
       : !settlement.settled
         ? 'submitted'
-        : depositSigning.status === 'submitted'
+        : depositSigning.status === 'completed'
           ? 'earning'
           : depositSigning.status === 'idle'
             ? 'settled'
@@ -138,7 +138,11 @@ export default function Home() {
           {quoteStatus === 'ready' && (
             <StepTracker
               stage={flowStage}
-              failed={originSwap.status === 'failed' || depositSigning.status === 'failed'}
+              failed={
+                originSwap.status === 'failed' ||
+                depositSigning.status === 'failed' ||
+                depositSigning.status === 'reverted'
+              }
               timestamps={settlement.settledAt ? { settled: settlement.settledAt } : undefined}
             />
           )}
@@ -232,6 +236,7 @@ export default function Home() {
                     availableXLM={depositSigning.availableXLM}
                     rebuildAnnouncement={depositSigning.rebuildAnnouncement}
                     txHash={depositSigning.txHash}
+                    dfTokens={depositSigning.dfTokens}
                     onSign={depositSigning.sign}
                   />
                 </>

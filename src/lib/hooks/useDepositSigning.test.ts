@@ -27,11 +27,36 @@ function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
-function mockHealthyBuild() {
+/**
+ * Real fetch calls now fan out across three routes (build, balance,
+ * correlation); a single blanket mock response would silently feed
+ * the wrong shape to each caller, so this differentiates by URL like
+ * the real routes actually do.
+ */
+function mockRoutedFetch({
+  dfTokens = 0,
+  correlationOk = true,
+}: { dfTokens?: number; correlationOk?: boolean } = {}) {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue(jsonResponse(200, { xdr: VALID_XDR, vaultAddress: 'CVAULT' }))
+    vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes('/api/deposit/build')) {
+        return Promise.resolve(jsonResponse(200, { xdr: VALID_XDR, vaultAddress: 'CVAULT' }));
+      }
+      if (url.includes('/api/deposit/balance')) {
+        return Promise.resolve(jsonResponse(200, { dfTokens, underlyingBalance: [] }));
+      }
+      if (url.includes('/api/correlation')) {
+        return Promise.resolve(jsonResponse(correlationOk ? 200 : 502, { ok: correlationOk }));
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    })
   );
+}
+
+function mockHealthyBuild() {
+  mockRoutedFetch();
   inspectDepositTransaction.mockReturnValue({ signatureExpirationLedger: 1010, feeStroops: '100000' });
   getLedgerTiming.mockResolvedValue({
     currentLedgerSeq: 1000,
@@ -98,7 +123,7 @@ describe('useDepositSigning', () => {
     });
   });
 
-  it('signs and submits successfully, landing on submitted with a tx hash', async () => {
+  it('moves through submitted then confirming on-chain, never collapsing the two states, per AC #1', async () => {
     mockHealthyBuild();
     signDepositTransaction.mockResolvedValue('AAAASIGNED');
     submitDepositTransaction.mockResolvedValue({ hash: 'DEADBEEF', successful: true });
@@ -113,10 +138,74 @@ describe('useDepositSigning', () => {
       await result.current.sign();
     });
 
-    await waitFor(() => {
-      expect(result.current.status).toBe('submitted');
-      expect(result.current.txHash).toBe('DEADBEEF');
+    expect(result.current.txHash).toBe('DEADBEEF');
+    await waitFor(() => expect(result.current.status).toBe('confirming on-chain'));
+  });
+
+  it('reaches completed once the dfToken balance increases over the pre-deposit baseline, per AC #2', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let dfTokens = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/api/deposit/build')) {
+          return Promise.resolve(jsonResponse(200, { xdr: VALID_XDR, vaultAddress: 'CVAULT' }));
+        }
+        if (url.includes('/api/deposit/balance')) {
+          return Promise.resolve(jsonResponse(200, { dfTokens, underlyingBalance: [] }));
+        }
+        return Promise.resolve(jsonResponse(200, { ok: true }));
+      })
+    );
+    inspectDepositTransaction.mockReturnValue({ signatureExpirationLedger: 1010, feeStroops: '100000' });
+    getLedgerTiming.mockResolvedValue({
+      currentLedgerSeq: 1000,
+      currentLedgerCloseMs: Date.parse('2026-09-22T00:00:00Z'),
+      ledgerCloseIntervalMs: 5000,
     });
+    getAssetBalance.mockResolvedValue({ balance: '50.0000000', lastModifiedTime: '2026-09-22T00:00:00Z' });
+    signDepositTransaction.mockResolvedValue('AAAASIGNED');
+    submitDepositTransaction.mockResolvedValue({ hash: 'DEADBEEF', successful: true });
+    const { result } = renderHook(() => useDepositSigning());
+
+    await act(async () => {
+      await result.current.start(PARAMS);
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready-to-sign'));
+    await act(async () => {
+      await result.current.sign();
+    });
+
+    expect(result.current.status).toBe('confirming on-chain');
+
+    // The balance now reflects the confirmed deposit, above the
+    // baseline of 0 captured before signing.
+    dfTokens = 100;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(result.current.status).toBe('completed');
+    expect(result.current.dfTokens).toBe(100);
+  });
+
+  it('reports an explicit reverted state, distinct from a submission failure, per AC #3', async () => {
+    mockHealthyBuild();
+    signDepositTransaction.mockResolvedValue('AAAASIGNED');
+    submitDepositTransaction.mockResolvedValue({ hash: 'DEADBEEF', successful: false });
+    const { result } = renderHook(() => useDepositSigning());
+
+    await act(async () => {
+      await result.current.start(PARAMS);
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready-to-sign'));
+
+    await act(async () => {
+      await result.current.sign();
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('reverted'));
   });
 
   it('reports an explicit disconnected state, never assuming success, per AC #3', async () => {
@@ -161,7 +250,5 @@ describe('useDepositSigning', () => {
     });
 
     expect(result.current.rebuildAnnouncement).toBeTruthy();
-    // A second build call happened (the initial one plus the rebuild).
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
   });
 });

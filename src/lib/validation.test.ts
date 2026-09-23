@@ -1,15 +1,18 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const set = vi.fn();
+const get = vi.fn();
 
 vi.mock('@/lib/redis', () => ({
-  getRedisClient: () => ({ set }),
+  getRedisClient: () => ({ set, get }),
 }));
 
 import {
   validateCorrelationRecord,
   writeCorrelationRecord,
+  updateCorrelationRecordWithDeposit,
   InvalidCorrelationRecordError,
+  CorrelationRecordNotFoundError,
 } from './validation';
 
 const validRecord = {
@@ -42,6 +45,22 @@ describe('validateCorrelationRecord', () => {
       InvalidCorrelationRecordError
     );
   });
+
+  it('accepts the optional Story 1.11 deposit fields when present and valid', () => {
+    const withDeposit = {
+      ...validRecord,
+      destinationVault: 'CVAULT',
+      depositStatus: 'completed' as const,
+      depositConfirmedAt: '2026-09-22T00:00:00.000Z',
+    };
+    expect(validateCorrelationRecord(withDeposit)).toEqual(withDeposit);
+  });
+
+  it('rejects a depositStatus that is not "completed" or "reverted"', () => {
+    expect(() =>
+      validateCorrelationRecord({ ...validRecord, depositStatus: 'pending' as never })
+    ).toThrow(InvalidCorrelationRecordError);
+  });
 });
 
 describe('writeCorrelationRecord', () => {
@@ -63,6 +82,45 @@ describe('writeCorrelationRecord', () => {
     expect(set).toHaveBeenCalledWith(
       `correlation:${validRecord.stellarAddress}`,
       JSON.stringify(validRecord)
+    );
+  });
+});
+
+describe('updateCorrelationRecordWithDeposit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('refuses to update a record that was never written, never fabricating one', async () => {
+    get.mockResolvedValue(null);
+
+    await expect(
+      updateCorrelationRecordWithDeposit(validRecord.stellarAddress, {
+        destinationVault: 'CVAULT',
+        depositStatus: 'completed',
+        depositConfirmedAt: '2026-09-22T00:00:00.000Z',
+      })
+    ).rejects.toBeInstanceOf(CorrelationRecordNotFoundError);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('merges the deposit outcome into the existing record and re-validates the whole thing', async () => {
+    get.mockResolvedValue(validRecord);
+
+    await updateCorrelationRecordWithDeposit(validRecord.stellarAddress, {
+      destinationVault: 'CVAULT',
+      depositStatus: 'completed',
+      depositConfirmedAt: '2026-09-22T00:00:00.000Z',
+    });
+
+    expect(set).toHaveBeenCalledWith(
+      `correlation:${validRecord.stellarAddress}`,
+      JSON.stringify({
+        ...validRecord,
+        destinationVault: 'CVAULT',
+        depositStatus: 'completed',
+        depositConfirmedAt: '2026-09-22T00:00:00.000Z',
+      })
     );
   });
 });

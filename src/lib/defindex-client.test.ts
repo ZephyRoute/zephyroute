@@ -1,15 +1,20 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-const { depositToVault } = vi.hoisted(() => ({ depositToVault: vi.fn() }));
+const { depositToVault, getVaultBalance } = vi.hoisted(() => ({
+  depositToVault: vi.fn(),
+  getVaultBalance: vi.fn(),
+}));
 
 vi.mock('@defindex/sdk', () => ({
   DefindexSDK: class {
     depositToVault = depositToVault;
+    getVaultBalance = getVaultBalance;
   },
   SupportedNetworks: { MAINNET: 'mainnet', TESTNET: 'testnet' },
 }));
 
-const { buildDepositTransaction, DepositBuildError } = await import('./defindex-client');
+const { buildDepositTransaction, DepositBuildError, getDepositorVaultBalance, VaultBalanceQueryError } =
+  await import('./defindex-client');
 const { InvalidTransactionXDRError } = await import('./validation');
 
 const VALID_XDR = 'AAAAAgAAAAB' + 'A'.repeat(50);
@@ -93,6 +98,29 @@ describe('buildDepositTransaction', () => {
 
     await expect(buildDepositTransaction('GDEPOSITOR', '10000000')).rejects.toBeInstanceOf(
       DepositBuildError
+    );
+  });
+});
+
+describe('getDepositorVaultBalance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns the real dfTokens and underlying balance from the vault', async () => {
+    getVaultBalance.mockResolvedValue({ dfTokens: 100, underlyingBalance: [9900000] });
+
+    const result = await getDepositorVaultBalance('CVAULT', 'GDEPOSITOR');
+
+    expect(result).toEqual({ dfTokens: 100, underlyingBalance: [9900000] });
+    expect(getVaultBalance).toHaveBeenCalledWith('CVAULT', 'GDEPOSITOR');
+  });
+
+  it('wraps an SDK failure as VaultBalanceQueryError, never a silent failure', async () => {
+    getVaultBalance.mockRejectedValue(new Error('DeFindex API is down'));
+
+    await expect(getDepositorVaultBalance('CVAULT', 'GDEPOSITOR')).rejects.toBeInstanceOf(
+      VaultBalanceQueryError
     );
   });
 });

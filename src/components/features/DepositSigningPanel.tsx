@@ -13,6 +13,7 @@ export interface DepositSigningPanelProps {
   availableXLM: string | null;
   rebuildAnnouncement: string | null;
   txHash: string | null;
+  dfTokens: number | null;
   onSign: () => void;
 }
 
@@ -53,6 +54,7 @@ export function DepositSigningPanel({
   availableXLM,
   rebuildAnnouncement,
   txHash,
+  dfTokens,
   onSign,
 }: DepositSigningPanelProps) {
   return (
@@ -106,8 +108,23 @@ export function DepositSigningPanel({
         )}
 
       {status === 'submitted' && txHash && (
-        <p className={styles.status}>Deposit submitted. Transaction: {truncateAddress(txHash)}</p>
+        <p className={styles.status}>Submitted. Transaction: {truncateAddress(txHash)}</p>
       )}
+
+      {status === 'confirming on-chain' && (
+        <p className={`${styles.status} tabular`}>
+          Confirming on-chain...
+          {txHash && ` Transaction: ${truncateAddress(txHash)}`}
+        </p>
+      )}
+
+      {status === 'completed' && (
+        <p className={styles.status}>
+          You&apos;re now earning yield in the vault{dfTokens !== null && ` (${dfTokens} shares)`}.
+        </p>
+      )}
+
+      {status === 'reverted' && errorMessage && <p className={styles.warning}>{errorMessage}</p>}
 
       {status === 'failed' && errorMessage && <p className={styles.warning}>{errorMessage}</p>}
     </div>
