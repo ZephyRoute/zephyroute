@@ -105,3 +105,28 @@ export async function signDepositTransaction(
     unsubscribe();
   }
 }
+
+export class ChallengeSigningError extends Error {}
+
+/**
+ * Story 1.12, AC #1: signs the fixed `zephyroute:correlation-read:`
+ * challenge (SEP-53 message signing, not a transaction), the proof the
+ * gateway requires before returning any status for this address,
+ * closing the enumeration/privacy gap an open address-only lookup
+ * would otherwise have.
+ */
+export async function signCorrelationReadChallenge(
+  address: string,
+  message: string
+): Promise<string> {
+  initWalletKit();
+  try {
+    const { signedMessage } = await StellarWalletsKit.signMessage(message, {
+      networkPassphrase: Networks.PUBLIC,
+      address,
+    });
+    return signedMessage;
+  } catch (cause) {
+    throw new ChallengeSigningError('Could not sign the verification challenge.', { cause });
+  }
+}

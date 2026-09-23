@@ -1,11 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { authModal, init, disconnect, on, signTransaction } = vi.hoisted(() => ({
+const { authModal, init, disconnect, on, signTransaction, signMessage } = vi.hoisted(() => ({
   authModal: vi.fn(),
   init: vi.fn(),
   disconnect: vi.fn(),
   on: vi.fn(),
   signTransaction: vi.fn(),
+  signMessage: vi.fn(),
 }));
 
 vi.mock('@creit.tech/stellar-wallets-kit/sdk', () => ({
@@ -15,6 +16,7 @@ vi.mock('@creit.tech/stellar-wallets-kit/sdk', () => ({
     disconnect,
     on,
     signTransaction,
+    signMessage,
   },
 }));
 
@@ -101,5 +103,36 @@ describe('signDepositTransaction', () => {
     await expect(signDepositTransaction('AAAAUNSIGNED', 'GDEPOSITOR')).rejects.toMatchObject({
       reason: 'cancelled',
     });
+  });
+});
+
+describe('signCorrelationReadChallenge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('resolves with the signed message on success', async () => {
+    signMessage.mockResolvedValue({ signedMessage: 'c2lnbmVk', signerAddress: 'GDEPOSITOR' });
+    const { signCorrelationReadChallenge } = await import('./wallet-kit');
+
+    const signature = await signCorrelationReadChallenge(
+      'GDEPOSITOR',
+      'zephyroute:correlation-read:1758499200'
+    );
+
+    expect(signature).toBe('c2lnbmVk');
+    expect(signMessage).toHaveBeenCalledWith(
+      'zephyroute:correlation-read:1758499200',
+      expect.objectContaining({ address: 'GDEPOSITOR' })
+    );
+  });
+
+  it('throws ChallengeSigningError, never a silent failure, when signing is cancelled or fails', async () => {
+    signMessage.mockRejectedValue(new Error('User rejected the request'));
+    const { signCorrelationReadChallenge, ChallengeSigningError } = await import('./wallet-kit');
+
+    await expect(
+      signCorrelationReadChallenge('GDEPOSITOR', 'zephyroute:correlation-read:1758499200')
+    ).rejects.toBeInstanceOf(ChallengeSigningError);
   });
 });

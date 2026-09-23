@@ -26,7 +26,7 @@ export class DepositBuildError extends Error {}
  * mainnet vault address before this can go live; deliberately throws
  * instead of silently building a deposit against an unverified guess.
  */
-function requiredVaultAddress(): string {
+export function requiredVaultAddress(): string {
   const address = process.env.DEFINDEX_VAULT_ADDRESS;
   if (!address) {
     throw new DepositBuildError(

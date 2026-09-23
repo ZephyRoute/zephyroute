@@ -12,6 +12,7 @@ import { useTrustlineCheck } from '@/lib/hooks/useTrustlineCheck';
 import { useOriginSwap } from '@/lib/hooks/useOriginSwap';
 import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
 import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
+import { useCorrelationResume } from '@/lib/hooks/useCorrelationResume';
 import { getAssetBalance } from '@/lib/horizon';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 import type { FlowStage } from '@/lib/types';
@@ -22,13 +23,37 @@ export default function Home() {
   const trustline = useTrustlineCheck();
   const originSwap = useOriginSwap();
   const depositSigning = useDepositSigning();
+  const resume = useCorrelationResume();
   const [routeIndex, setRouteIndex] = useState(0);
   const [amount, setAmount] = useState('');
   const [baselineBalance, setBaselineBalance] = useState<string | null>(null);
   const correlationWrittenRef = useRef(false);
   const depositStartedRef = useRef(false);
+  const resumeCheckedRef = useRef(false);
 
   const route = SUPPORTED_ROUTES[routeIndex];
+
+  // Story 1.12: on every reconnect, check once whether this address
+  // already has a settled-but-undeposited balance or a completed
+  // deposit, before showing the normal quote flow at all.
+  useEffect(() => {
+    if (!address || resumeCheckedRef.current) return;
+    resumeCheckedRef.current = true;
+    resume.check(address);
+  }, [address, resume]);
+
+  // AC #1: resumed directly at the deposit-signing step, never asked
+  // to re-quote or re-sign the origin-chain swap.
+  useEffect(() => {
+    if (resume.status !== 'resumable-deposit' || !resume.resumableDeposit || !address) return;
+    if (depositStartedRef.current) return;
+    depositStartedRef.current = true;
+    depositSigning.start({
+      depositorAddress: address,
+      amountInSmallestUnits: resume.resumableDeposit.settledAmount,
+      slippageBps: 100,
+    });
+  }, [resume.status, resume.resumableDeposit, address, depositSigning]);
 
   const settlement = useSettlementStatus({
     accountId: address ?? '',
@@ -118,6 +143,23 @@ export default function Home() {
     }
   };
 
+  const depositSigningPanel = (
+    <DepositSigningPanel
+      status={depositSigning.status}
+      errorMessage={depositSigning.errorMessage}
+      vaultAddress={depositSigning.vaultAddress}
+      amountInSmallestUnits={depositSigning.amountInSmallestUnits}
+      minimumGuaranteedInSmallestUnits={depositSigning.minimumGuaranteedInSmallestUnits}
+      secondsRemaining={depositSigning.secondsRemaining}
+      requiredFeeXLM={depositSigning.requiredFeeXLM}
+      availableXLM={depositSigning.availableXLM}
+      rebuildAnnouncement={depositSigning.rebuildAnnouncement}
+      txHash={depositSigning.txHash}
+      dfTokens={depositSigning.dfTokens}
+      onSign={depositSigning.sign}
+    />
+  );
+
   return (
     <main>
       <TrustBadge />
@@ -135,110 +177,127 @@ export default function Home() {
 
       {walletStatus === 'connected' && (
         <div>
-          {quoteStatus === 'ready' && (
-            <StepTracker
-              stage={flowStage}
-              failed={
-                originSwap.status === 'failed' ||
-                depositSigning.status === 'failed' ||
-                depositSigning.status === 'reverted'
-              }
-              timestamps={settlement.settledAt ? { settled: settlement.settledAt } : undefined}
-            />
+          {resume.status === 'checking' && (
+            <p role="status">Checking for anything already in progress…</p>
           )}
 
-          <label htmlFor="route-select">Route</label>
-          <select
-            id="route-select"
-            value={routeIndex}
-            onChange={(event) => setRouteIndex(Number(event.target.value))}
-            disabled={quoteStatus === 'ready'}
-          >
-            {SUPPORTED_ROUTES.map((r, index) => (
-              <option key={r.label} value={index}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-
-          <label htmlFor="amount-input">Amount</label>
-          <input
-            id="amount-input"
-            type="text"
-            inputMode="numeric"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            placeholder="Amount in smallest units"
-            disabled={quoteStatus === 'ready'}
-          />
-
-          {quoteStatus !== 'ready' && (
-            <Button
-              onClick={handleRequestQuote}
-              disabled={quoteStatus === 'loading' || trustline.status === 'checking' || !amount}
-            >
-              {trustline.status === 'checking'
-                ? 'Checking your account…'
-                : quoteStatus === 'loading'
-                  ? 'Getting quote…'
-                  : 'Get quote'}
-            </Button>
+          {resume.status === 'failed' && resume.errorMessage && (
+            <p role="alert">{resume.errorMessage}</p>
           )}
 
-          {trustline.status === 'missing' && (
-            <p role="alert">
-              Your Stellar account doesn&apos;t hold the trustline for this destination asset
-              yet. Onboarding for new accounts isn&apos;t available in this build yet (Epic 2).
+          {resume.status === 'earning' && resume.earningPosition && (
+            <p role="status">
+              You&apos;re already earning yield in the vault ({resume.earningPosition.dfTokens}{' '}
+              shares).
             </p>
           )}
 
-          {trustline.status === 'failed' && trustline.errorMessage && (
-            <p role="alert">{trustline.errorMessage}</p>
-          )}
-
-          {(quoteStatus === 'rejected' || quoteStatus === 'failed') && quoteError && (
-            <p role="alert">{quoteError}</p>
-          )}
-
-          {quoteStatus === 'ready' && quote && (
+          {resume.status === 'resumable-deposit' && (
             <>
-              <QuoteDisplay quote={quote} />
+              <p role="status">Resuming your deposit from where you left off.</p>
+              <StepTracker
+                stage="depositing"
+                failed={depositSigning.status === 'failed' || depositSigning.status === 'reverted'}
+              />
+              {depositSigningPanel}
+            </>
+          )}
 
-              {originSwap.status === 'idle' && (
-                <Button onClick={handleSignOriginSwap}>Sign origin-chain swap</Button>
+          {(resume.status === 'none' || resume.status === 'failed') && (
+            <>
+              {quoteStatus === 'ready' && (
+                <StepTracker
+                  stage={flowStage}
+                  failed={
+                    originSwap.status === 'failed' ||
+                    depositSigning.status === 'failed' ||
+                    depositSigning.status === 'reverted'
+                  }
+                  timestamps={settlement.settledAt ? { settled: settlement.settledAt } : undefined}
+                />
               )}
 
-              {(originSwap.status === 'connecting' || originSwap.status === 'signing') && (
-                <p role="status">
-                  {originSwap.status === 'connecting' ? 'Connecting your EVM wallet…' : 'Signing…'}
+              <label htmlFor="route-select">Route</label>
+              <select
+                id="route-select"
+                value={routeIndex}
+                onChange={(event) => setRouteIndex(Number(event.target.value))}
+                disabled={quoteStatus === 'ready'}
+              >
+                {SUPPORTED_ROUTES.map((r, index) => (
+                  <option key={r.label} value={index}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+
+              <label htmlFor="amount-input">Amount</label>
+              <input
+                id="amount-input"
+                type="text"
+                inputMode="numeric"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder="Amount in smallest units"
+                disabled={quoteStatus === 'ready'}
+              />
+
+              {quoteStatus !== 'ready' && (
+                <Button
+                  onClick={handleRequestQuote}
+                  disabled={quoteStatus === 'loading' || trustline.status === 'checking' || !amount}
+                >
+                  {trustline.status === 'checking'
+                    ? 'Checking your account…'
+                    : quoteStatus === 'loading'
+                      ? 'Getting quote…'
+                      : 'Get quote'}
+                </Button>
+              )}
+
+              {trustline.status === 'missing' && (
+                <p role="alert">
+                  Your Stellar account doesn&apos;t hold the trustline for this destination asset
+                  yet. Onboarding for new accounts isn&apos;t available in this build yet (Epic 2).
                 </p>
               )}
 
-              {originSwap.status === 'failed' && originSwap.errorMessage && (
-                <p role="alert">{originSwap.errorMessage}</p>
+              {trustline.status === 'failed' && trustline.errorMessage && (
+                <p role="alert">{trustline.errorMessage}</p>
               )}
 
-              {originSwap.status === 'submitted' && !settlement.settled && (
-                <p role="status">Waiting for settlement, this can take a few minutes…</p>
+              {(quoteStatus === 'rejected' || quoteStatus === 'failed') && quoteError && (
+                <p role="alert">{quoteError}</p>
               )}
 
-              {settlement.settled && (
+              {quoteStatus === 'ready' && quote && (
                 <>
-                  <p role="status">Funds have landed in your Stellar account.</p>
-                  <DepositSigningPanel
-                    status={depositSigning.status}
-                    errorMessage={depositSigning.errorMessage}
-                    vaultAddress={depositSigning.vaultAddress}
-                    amountInSmallestUnits={depositSigning.amountInSmallestUnits}
-                    minimumGuaranteedInSmallestUnits={depositSigning.minimumGuaranteedInSmallestUnits}
-                    secondsRemaining={depositSigning.secondsRemaining}
-                    requiredFeeXLM={depositSigning.requiredFeeXLM}
-                    availableXLM={depositSigning.availableXLM}
-                    rebuildAnnouncement={depositSigning.rebuildAnnouncement}
-                    txHash={depositSigning.txHash}
-                    dfTokens={depositSigning.dfTokens}
-                    onSign={depositSigning.sign}
-                  />
+                  <QuoteDisplay quote={quote} />
+
+                  {originSwap.status === 'idle' && (
+                    <Button onClick={handleSignOriginSwap}>Sign origin-chain swap</Button>
+                  )}
+
+                  {(originSwap.status === 'connecting' || originSwap.status === 'signing') && (
+                    <p role="status">
+                      {originSwap.status === 'connecting' ? 'Connecting your EVM wallet…' : 'Signing…'}
+                    </p>
+                  )}
+
+                  {originSwap.status === 'failed' && originSwap.errorMessage && (
+                    <p role="alert">{originSwap.errorMessage}</p>
+                  )}
+
+                  {originSwap.status === 'submitted' && !settlement.settled && (
+                    <p role="status">Waiting for settlement, this can take a few minutes…</p>
+                  )}
+
+                  {settlement.settled && (
+                    <>
+                      <p role="status">Funds have landed in your Stellar account.</p>
+                      {depositSigningPanel}
+                    </>
+                  )}
                 </>
               )}
             </>
