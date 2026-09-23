@@ -35,18 +35,21 @@ export class UnsupportedOriginChainError extends Error {}
  * never re-derived from the user's original input, which could drift
  * from what was actually quoted.
  *
- * Bitcoin has no EVM wallet or injected-provider signing convention;
- * this deliberately throws rather than silently producing a
- * meaningless transaction shape for a chain wagmi cannot sign for.
+ * Bitcoin and Solana have no EVM wallet or injected-provider signing
+ * convention wagmi can use; this deliberately throws for either rather
+ * than silently producing a meaningless transaction shape. Solana
+ * routes are dispatched to `solana-swap.ts` before this function is
+ * ever called (`useOriginSwap.ts`), this guard is defensive, not the
+ * primary dispatch mechanism.
  */
 export function buildOriginSwapTransaction(
   route: SupportedRoute,
   depositAddress: string,
   amountInSmallestUnits: string
 ): OriginSwapTransaction {
-  if (route.originChain === 'bitcoin') {
+  if (route.originChain === 'bitcoin' || route.originChain === 'solana') {
     throw new UnsupportedOriginChainError(
-      'Bitcoin-origin signing needs its own wallet integration, not the EVM path.'
+      `${route.originChain === 'bitcoin' ? 'Bitcoin' : 'Solana'}-origin signing needs its own wallet integration, not the EVM path.`
     );
   }
   if (!route.originContract) {
