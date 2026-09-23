@@ -87,10 +87,14 @@ export function useEmbeddedWalletOnboarding(): UseEmbeddedWalletOnboardingResult
         { email, externalId }
       );
       const attestation = await createPasskeyCredential(challenge as never);
-      const registered = await postJson<{ walletId: string; stellarAddress: string }>(
-        '/api/onboarding/register/complete',
-        { firstFactorCredential: attestation, walletName: 'zephyroute-stellar' }
-      );
+      const registered = await postJson<{
+        walletId: string;
+        stellarAddress: string;
+        registrationToken: string;
+      }>('/api/onboarding/register/complete', {
+        firstFactorCredential: attestation,
+        walletName: 'zephyroute-stellar',
+      });
 
       setStatus('funding');
       const built = await postJson<{ partiallySignedXdr: string; hashHex: string }>(
@@ -99,6 +103,7 @@ export function useEmbeddedWalletOnboarding(): UseEmbeddedWalletOnboardingResult
           stellarAddress: registered.stellarAddress,
           assetCode: asset.code,
           assetIssuer: asset.issuer,
+          registrationToken: registered.registrationToken,
         }
       );
 

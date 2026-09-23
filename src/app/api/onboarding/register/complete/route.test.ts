@@ -1,12 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { completeEndUserRegistration } = vi.hoisted(() => ({
+const { completeEndUserRegistration, issueRegistrationToken } = vi.hoisted(() => ({
   completeEndUserRegistration: vi.fn(),
+  issueRegistrationToken: vi.fn(),
 }));
 
 vi.mock('@/lib/dfns-client', async () => {
   const actual = await vi.importActual<typeof import('@/lib/dfns-client')>('@/lib/dfns-client');
   return { ...actual, completeEndUserRegistration };
+});
+vi.mock('@/lib/onboarding-registration-token', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/onboarding-registration-token')>(
+    '@/lib/onboarding-registration-token'
+  );
+  return { ...actual, issueRegistrationToken };
 });
 
 const { POST } = await import('./route');
@@ -35,13 +42,14 @@ describe('POST /api/onboarding/register/complete', () => {
     expect(completeEndUserRegistration).not.toHaveBeenCalled();
   });
 
-  it('extracts the Stellar wallet address from the response on success', async () => {
+  it('extracts the Stellar wallet address from the response on success and issues a registration token', async () => {
     completeEndUserRegistration.mockResolvedValue({
       user: { id: 'u1', username: 'u', orgId: 'o1' },
       authentication: { token: 'end-user-token' },
       wallets: [{ id: 'w1', network: 'Stellar', address: 'GNEWACCOUNT' }],
       credential: { uuid: 'c1', kind: 'Fido2', name: 'passkey' },
     });
+    issueRegistrationToken.mockResolvedValue('reg-token-1');
 
     const response = await POST(
       postRequest({ firstFactorCredential: VALID_CREDENTIAL, walletName: 'zephyroute' })
@@ -54,7 +62,25 @@ describe('POST /api/onboarding/register/complete', () => {
       authToken: 'end-user-token',
       walletId: 'w1',
       stellarAddress: 'GNEWACCOUNT',
+      registrationToken: 'reg-token-1',
     });
+    expect(issueRegistrationToken).toHaveBeenCalledWith('GNEWACCOUNT', 'w1');
+  });
+
+  it('fails closed, never returning an unusable registration, when the token cannot be issued', async () => {
+    completeEndUserRegistration.mockResolvedValue({
+      user: { id: 'u1', username: 'u', orgId: 'o1' },
+      authentication: { token: 'end-user-token' },
+      wallets: [{ id: 'w1', network: 'Stellar', address: 'GNEWACCOUNT' }],
+      credential: { uuid: 'c1', kind: 'Fido2', name: 'passkey' },
+    });
+    issueRegistrationToken.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    const response = await POST(
+      postRequest({ firstFactorCredential: VALID_CREDENTIAL, walletName: 'zephyroute' })
+    );
+
+    expect(response.status).toBe(500);
   });
 
   it('surfaces a missing Stellar wallet in the response as a 502, never crashing', async () => {
