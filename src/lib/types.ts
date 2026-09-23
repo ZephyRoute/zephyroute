@@ -16,3 +16,14 @@ export type DepositTransactionStatus =
   | 'failed'
   | 'expired'
   | 'reverted';
+
+/**
+ * AC #4 (review before signing), enforced at the type level, not just
+ * convention (architecture.md, Architectural Boundaries): a branded
+ * type only `lib/validation.ts` can produce, so `wallet-kit.ts`'s sign
+ * function accepting anything else is a compile error, not a runtime
+ * risk. The brand is a private symbol, never exported, so no other
+ * module can fabricate one by just matching the shape.
+ */
+declare const validatedTransactionXdrBrand: unique symbol;
+export type ValidatedTransactionXDR = string & { readonly [validatedTransactionXdrBrand]: true };
