@@ -15,7 +15,7 @@ import { useOriginSwap } from '@/lib/hooks/useOriginSwap';
 import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
 import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
 import { useCorrelationResume } from '@/lib/hooks/useCorrelationResume';
-import { buildCorrelationWriteChallenge } from '@/lib/auth-nonce';
+import { getOrCreateCorrelationWriteProof } from '@/lib/correlation-write-proof';
 import { getAssetBalance } from '@/lib/horizon';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 import type { FlowStage } from '@/lib/types';
@@ -96,18 +96,22 @@ export function ZephyrouteFlow() {
   // Security review finding: the route now requires proof the caller
   // controls `address` (a signed `zephyroute:correlation-write:`
   // challenge, `lib/auth-nonce.ts`) before persisting anything,
-  // previously anyone could forge any address's record. This adds a
-  // signature prompt to a moment that was previously silent/automatic,
-  // a real, deliberate product tradeoff against the "two signatures"
-  // framing used elsewhere (the origin-chain swap and the deposit),
-  // flagged explicitly rather than shipped quietly.
+  // previously anyone could forge any address's record. That alone adds
+  // a signature prompt at a moment that was previously silent/automatic
+  // (Issue #41 / PR #43's own flagged tradeoff against the "two
+  // signatures" framing used elsewhere). `correlation-write-proof.ts`
+  // reuses that same signed proof for the deposit-completion write
+  // below too, as long as it's still within its validity window, so
+  // the common path adds at most one new prompt, not two.
   useEffect(() => {
     if (!settlement.settled || correlationWrittenRef.current || !address || !quote) return;
     correlationWrittenRef.current = true;
     (async () => {
       try {
-        const message = buildCorrelationWriteChallenge();
-        const signature = await identity.signMessage(message);
+        const { message, signature } = await getOrCreateCorrelationWriteProof(
+          address,
+          identity.signMessage
+        );
         await fetch('/api/correlation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -11,7 +11,7 @@ import {
 } from '@/lib/horizon';
 import { signDepositTransaction, DepositSigningError } from '@/lib/wallet-kit';
 import { signAndSubmitDepositWithDfns } from '@/lib/dfns-deposit-signing';
-import { buildCorrelationWriteChallenge } from '@/lib/auth-nonce';
+import { getOrCreateCorrelationWriteProof } from '@/lib/correlation-write-proof';
 
 export type DepositSigningStatus =
   | 'idle'
@@ -294,8 +294,10 @@ export function useDepositSigning(): UseDepositSigningResult {
             setStatus('completed');
             (async () => {
               try {
-                const message = buildCorrelationWriteChallenge();
-                const signature = await signMessage(message);
+                const { message, signature } = await getOrCreateCorrelationWriteProof(
+                  depositorAddress,
+                  signMessage
+                );
                 await fetch('/api/correlation', {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
