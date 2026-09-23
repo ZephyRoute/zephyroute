@@ -90,6 +90,18 @@ export function validateTransactionXDR(xdr: string): ValidatedTransactionXDR {
 }
 
 /**
+ * The append-only counterpart to `correlation:{address}` (below),
+ * which a second settlement from the same address would otherwise
+ * silently overwrite, destroying the only signal recurrence rate
+ * (Issue #22, Story 3.2) needs: whether an address settled more than
+ * once. A single global sorted set, scored by settlement time, member
+ * `{address}:{correlationId}` (unique per settlement, never collides),
+ * queried by score range for a given window rather than one sorted set
+ * per address, avoiding an address-enumeration problem entirely.
+ */
+export const SETTLEMENT_LOG_KEY = 'settlement-log';
+
+/**
  * Rule #9: this is a convenience cache write, never the sole record of
  * a settlement, everything here remains independently reconstructable
  * from Horizon/1Click's own integrator-attributed records (AC #9). A
@@ -99,6 +111,17 @@ export async function writeCorrelationRecord(record: Partial<CorrelationRecord>)
   const validated = validateCorrelationRecord(record);
   const redis = getRedisClient();
   await redis.set(`correlation:${validated.stellarAddress}`, JSON.stringify(validated));
+
+  try {
+    await redis.zadd(SETTLEMENT_LOG_KEY, {
+      score: Date.parse(validated.settledAt),
+      member: `${validated.stellarAddress}:${validated.correlationId}`,
+    });
+  } catch {
+    // Same Rule #9 tolerance as the record write above: recurrence
+    // rate degrades gracefully (undercounts) rather than this ever
+    // being treated as a failed settlement.
+  }
 }
 
 export class CorrelationRecordNotFoundError extends Error {}

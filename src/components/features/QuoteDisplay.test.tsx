@@ -28,10 +28,17 @@ const quote: QuoteResponse = {
     amountInFormatted: '10 USDC',
     amountInUsd: '10',
     minAmountIn: '10000000',
-    amountOut: '9969000',
+    // 7 decimals, the real, live-verified convention for a Stellar
+    // USDC destination (confirmed via a real `dry: true` 1Click quote,
+    // amountOut '99758879' / amountOutFormatted '9.9758879', a 1:1e7
+    // ratio), not the 6-decimal convention an earlier, unverified
+    // version of this fixture assumed (zephyroute-internal
+    // improvement-ideas/verify-1click-amount-formatted-decimals.md,
+    // now resolved).
+    amountOut: '99690000',
     amountOutFormatted: '9.969 USDC',
     amountOutUsd: '9.969',
-    minAmountOut: '9869000',
+    minAmountOut: '98690000',
     timeEstimate: 60,
     deadline: new Date().toISOString(),
     refundFee: '1000',
@@ -43,7 +50,7 @@ describe('QuoteDisplay', () => {
     render(<QuoteDisplay quote={quote} />);
 
     expect(screen.getByText(/9\.969 USDC for 10 USDC/)).toBeInTheDocument();
-    expect(screen.getByText(/Min received: 9869000/)).toBeInTheDocument();
+    expect(screen.getByText(/Min received: 98690000/)).toBeInTheDocument();
   });
 
   it('shows the full plain-language sentence, embedding the same real numbers, for a new user (Story 2.1, AC #2)', () => {
@@ -63,8 +70,8 @@ describe('QuoteDisplay', () => {
     await user.click(screen.getByRole('button', { name: 'See full quote' }));
 
     expect(screen.getByText('10000000')).toBeInTheDocument();
-    expect(screen.getByText('9969000')).toBeInTheDocument();
-    expect(screen.getByText('9869000')).toBeInTheDocument();
+    expect(screen.getByText('99690000')).toBeInTheDocument();
+    expect(screen.getByText('98690000')).toBeInTheDocument();
     expect(screen.getByText('100 bps')).toBeInTheDocument();
     expect(screen.getByText('0xoriginwalletaddress')).toBeInTheDocument();
     expect(screen.getByText('ORIGIN_CHAIN')).toBeInTheDocument();
