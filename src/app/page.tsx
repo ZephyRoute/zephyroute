@@ -13,7 +13,6 @@ import { useOriginSwap } from '@/lib/hooks/useOriginSwap';
 import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
 import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
 import { getAssetBalance } from '@/lib/horizon';
-import { writeCorrelationRecord } from '@/lib/validation';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 import type { FlowStage } from '@/lib/types';
 
@@ -39,17 +38,24 @@ export default function Home() {
   });
 
   // Correlation record write, the moment settlement is first confirmed
-  // (Story 1.8's own AC), never repeated once already written.
+  // (Story 1.8's own AC), never repeated once already written. Goes
+  // through /api/correlation rather than lib/validation.ts's
+  // writeCorrelationRecord directly, that carries the Upstash Redis
+  // REST token, a secret that must never reach client code (Issue #7).
   useEffect(() => {
     if (!settlement.settled || correlationWrittenRef.current || !address || !quote) return;
     correlationWrittenRef.current = true;
-    writeCorrelationRecord({
-      stellarAddress: address,
-      originChainAsset: route.originAsset,
-      settledAmount: quote.quote.amountOut,
-      settledAt: settlement.settledAt ?? new Date().toISOString(),
-      integratorId: 'zephyroute',
-      correlationId: quote.correlationId,
+    fetch('/api/correlation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stellarAddress: address,
+        originChainAsset: route.originAsset,
+        settledAmount: quote.quote.amountOut,
+        settledAt: settlement.settledAt ?? new Date().toISOString(),
+        integratorId: 'zephyroute',
+        correlationId: quote.correlationId,
+      }),
     }).catch(() => {
       // Rule #9: a failed cache write is never treated as a failed
       // settlement, the user's funds already arrived regardless.
