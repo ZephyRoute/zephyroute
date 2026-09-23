@@ -46,6 +46,16 @@ describe('QuoteDisplay', () => {
     expect(screen.getByText(/Min received: 9869000/)).toBeInTheDocument();
   });
 
+  it('shows the full plain-language sentence, embedding the same real numbers, for a new user (Story 2.1, AC #2)', () => {
+    render(<QuoteDisplay quote={quote} variant="new" />);
+
+    expect(
+      screen.getByText(
+        /You'll receive 9\.969 USDC in your Stellar account for the 10 USDC you're sending, in about 60 seconds\./
+      )
+    ).toBeInTheDocument();
+  });
+
   it('reveals every verbatim quote field, unrounded, under "See full quote"', async () => {
     const user = userEvent.setup();
     render(<QuoteDisplay quote={quote} />);

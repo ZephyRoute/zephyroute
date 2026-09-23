@@ -38,6 +38,24 @@ describe('useTrustlineCheck', () => {
 
     expect(checkResult).toBe(false);
     await waitFor(() => expect(result.current.status).toBe('missing'));
+    expect(result.current.everMissing).toBe(true);
+  });
+
+  it('keeps everMissing true even after a later check comes back present, per Story 2.1 AC #2', async () => {
+    hasTrustline.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const { result } = renderHook(() => useTrustlineCheck());
+
+    await act(async () => {
+      await result.current.check('GABCDEF', { code: 'USDC', issuer: 'GISSUER' });
+    });
+    await waitFor(() => expect(result.current.status).toBe('missing'));
+
+    await act(async () => {
+      await result.current.check('GABCDEF', { code: 'USDC', issuer: 'GISSUER' });
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('present'));
+    expect(result.current.everMissing).toBe(true);
   });
 
   it('surfaces a Horizon outage explicitly rather than silently blocking or proceeding', async () => {

@@ -4,22 +4,34 @@ import styles from './QuoteDisplay.module.css';
 
 export interface QuoteDisplayProps {
   quote: QuoteResponse;
+  /**
+   * The plain-language line's two depths (Design Direction Decision):
+   * `'returning'` is the compressed, numbers-first UJ-1 variant;
+   * `'new'` is the full-sentence UJ-2 variant (Story 2.1, AC #2). Both
+   * embed the same real, verbatim numbers, never a paraphrase.
+   */
+  variant?: 'returning' | 'new';
 }
 
 /**
  * FR1: fee, ETA, slippageTolerance, minAmountOut, and refund fields are
- * shown verbatim, never paraphrased or rounded. The compressed line is
- * the returning-user (UJ-1) variant of Guided Status; the full-sentence
- * variant for new users is Story 2.1's concern, not this one.
+ * shown verbatim, never paraphrased or rounded.
  */
-export function QuoteDisplay({ quote }: QuoteDisplayProps) {
+export function QuoteDisplay({ quote, variant = 'returning' }: QuoteDisplayProps) {
   const { quote: q, quoteRequest } = quote;
 
   return (
     <div className={styles.container}>
-      <p className={`${styles.headline} tabular`}>
-        {q.amountOutFormatted} for {q.amountInFormatted}, ~{q.timeEstimate}s
-      </p>
+      {variant === 'new' ? (
+        <p className={`${styles.headline} tabular`}>
+          You&apos;ll receive {q.amountOutFormatted} in your Stellar account for the{' '}
+          {q.amountInFormatted} you&apos;re sending, in about {q.timeEstimate} seconds.
+        </p>
+      ) : (
+        <p className={`${styles.headline} tabular`}>
+          {q.amountOutFormatted} for {q.amountInFormatted}, ~{q.timeEstimate}s
+        </p>
+      )}
       <p className={`${styles.feeRow} tabular`}>Min received: {q.minAmountOut}</p>
 
       <Disclosure summary="See full quote">

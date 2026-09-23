@@ -8,6 +8,14 @@ export type TrustlineCheckState = 'idle' | 'checking' | 'present' | 'missing' | 
 export interface UseTrustlineCheckResult {
   status: TrustlineCheckState;
   errorMessage: string | null;
+  /**
+   * Story 2.1, AC #2: once a check has ever come back missing, this
+   * stays `true` for the rest of the connection, even after the
+   * trustline eventually exists (Story 2.2's onboarding completes),
+   * so the full-sentence new-user quote variant stays in effect for
+   * the rest of that journey, never flipping back mid-flow.
+   */
+  everMissing: boolean;
   check: (accountId: string, asset: AssetIdentifier) => Promise<boolean>;
 }
 
@@ -19,6 +27,7 @@ export interface UseTrustlineCheckResult {
 export function useTrustlineCheck(): UseTrustlineCheckResult {
   const [status, setStatus] = useState<TrustlineCheckState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [everMissing, setEverMissing] = useState(false);
 
   const check = useCallback(async (accountId: string, asset: AssetIdentifier) => {
     setStatus('checking');
@@ -26,6 +35,7 @@ export function useTrustlineCheck(): UseTrustlineCheckResult {
     try {
       const present = await hasTrustline(accountId, asset);
       setStatus(present ? 'present' : 'missing');
+      if (!present) setEverMissing(true);
       return present;
     } catch (error) {
       setStatus('failed');
@@ -36,5 +46,5 @@ export function useTrustlineCheck(): UseTrustlineCheckResult {
     }
   }, []);
 
-  return { status, errorMessage, check };
+  return { status, errorMessage, everMissing, check };
 }

@@ -6,6 +6,7 @@ import { TrustBadge } from '@/components/features/TrustBadge';
 import { QuoteDisplay } from '@/components/features/QuoteDisplay';
 import { StepTracker } from '@/components/features/StepTracker';
 import { DepositSigningPanel } from '@/components/features/DepositSigningPanel';
+import { AccountSetupFork } from '@/components/features/AccountSetupFork';
 import { useWallet } from '@/lib/hooks/useWallet';
 import { useQuote } from '@/lib/hooks/useQuote';
 import { useTrustlineCheck } from '@/lib/hooks/useTrustlineCheck';
@@ -255,12 +256,7 @@ export default function Home() {
                 </Button>
               )}
 
-              {trustline.status === 'missing' && (
-                <p role="alert">
-                  Your Stellar account doesn&apos;t hold the trustline for this destination asset
-                  yet. Onboarding for new accounts isn&apos;t available in this build yet (Epic 2).
-                </p>
-              )}
+              {trustline.status === 'missing' && <AccountSetupFork />}
 
               {trustline.status === 'failed' && trustline.errorMessage && (
                 <p role="alert">{trustline.errorMessage}</p>
@@ -272,7 +268,7 @@ export default function Home() {
 
               {quoteStatus === 'ready' && quote && (
                 <>
-                  <QuoteDisplay quote={quote} />
+                  <QuoteDisplay quote={quote} variant={trustline.everMissing ? 'new' : 'returning'} />
 
                   {originSwap.status === 'idle' && (
                     <Button onClick={handleSignOriginSwap}>Sign origin-chain swap</Button>
