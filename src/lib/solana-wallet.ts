@@ -37,13 +37,28 @@ function findSolanaWallet(): Wallet {
   return wallet;
 }
 
+export interface ConnectedSolanaWallet {
+  wallet: Wallet;
+  account: WalletAccount;
+}
+
 /**
- * Opens the wallet's own connection prompt and resolves with the
- * authorized account. Never sees or requests a private key, the same
- * non-custodial invariant every other wallet-connection path in this
- * project already holds.
+ * Opens the wallet's own connection prompt and resolves with both the
+ * specific `Wallet` instance the user authorized and its account.
+ * Returning the wallet alongside the account (multi-wallet-extension
+ * finding): with more than one Solana extension installed, the wallet
+ * registry can change between connecting and signing (extensions
+ * inject asynchronously, and real network time, a swap-transaction
+ * build, elapses in between), so a second independent
+ * `findSolanaWallet()` call at sign time could silently resolve to a
+ * different, never-actually-authorized wallet than the one the user
+ * just connected. Threading the same `Wallet` reference through to
+ * `signAndSendSolanaTransaction` instead closes that race by
+ * construction rather than by timing luck. Never sees or requests a
+ * private key either way, the same non-custodial invariant every other
+ * wallet-connection path in this project already holds.
  */
-export async function connectSolanaWallet(): Promise<WalletAccount> {
+export async function connectSolanaWallet(): Promise<ConnectedSolanaWallet> {
   const wallet = findSolanaWallet();
   try {
     const feature = wallet.features[StandardConnect] as StandardConnectFeature[typeof StandardConnect];
@@ -52,7 +67,7 @@ export async function connectSolanaWallet(): Promise<WalletAccount> {
     if (!account) {
       throw new SolanaWalletError('No account was authorized.');
     }
-    return account;
+    return { wallet, account };
   } catch (cause) {
     if (cause instanceof SolanaWalletError) throw cause;
     throw new SolanaWalletError('Could not connect your Solana wallet.', { cause });
@@ -61,16 +76,17 @@ export async function connectSolanaWallet(): Promise<WalletAccount> {
 
 /**
  * Signs and submits an already-built, unsigned transaction via the
- * connected wallet, returning the transaction signature as the
- * conventional base58 string (matching how Solana Explorer and every
- * other Solana tool displays it), not the raw bytes the wallet
- * standard itself returns.
+ * exact `Wallet` instance the caller connected with (never re-resolved
+ * independently, see `connectSolanaWallet`'s own comment), returning
+ * the transaction signature as the conventional base58 string
+ * (matching how Solana Explorer and every other Solana tool displays
+ * it), not the raw bytes the wallet standard itself returns.
  */
 export async function signAndSendSolanaTransaction(
+  wallet: Wallet,
   account: WalletAccount,
   serializedTransaction: Uint8Array
 ): Promise<string> {
-  const wallet = findSolanaWallet();
   try {
     const feature = wallet.features[
       SolanaSignAndSendTransaction

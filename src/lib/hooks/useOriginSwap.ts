@@ -31,7 +31,7 @@ export function useOriginSwap() {
         await Promise.all([import('@/lib/solana-wallet'), import('@/lib/solana-swap')]);
 
       setStatus('connecting');
-      const account = await connectSolanaWallet();
+      const { wallet, account } = await connectSolanaWallet();
 
       setStatus('signing');
       const serializedTransaction = await buildSolanaSwapTransaction(
@@ -40,7 +40,10 @@ export function useOriginSwap() {
         depositAddress,
         amountInSmallestUnits
       );
-      const signature = await signAndSendSolanaTransaction(account, serializedTransaction);
+      // Signs with the exact wallet instance just connected, never a
+      // fresh independent lookup, closes the multi-extension race
+      // (solana-wallet.ts's own comment has the full explanation).
+      const signature = await signAndSendSolanaTransaction(wallet, account, serializedTransaction);
       setTxHash(signature);
       setStatus('submitted');
       return signature;
