@@ -1,0 +1,27 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-unit);
+  padding-block: calc(var(--space-unit) * 2);
+}
+
+.note {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: calc(var(--space-unit) * 0.75) calc(var(--space-unit) * 2);
+  font-size: 15px;
+}
+
+.grid dt {
+  color: var(--color-text-muted);
+}
+
+.grid dd {
+  color: var(--color-text);
+  font-weight: 600;
+}
