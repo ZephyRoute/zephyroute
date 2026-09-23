@@ -1,8 +1,10 @@
 import {
   OneClickService,
+  AccountService,
   OpenAPI,
   QuoteRequest,
   ApiError,
+  HistoryItem,
   type QuoteResponse,
 } from '@defuse-protocol/one-click-sdk-typescript';
 
@@ -85,4 +87,66 @@ export async function requestQuote(params: RequestQuoteParams): Promise<QuoteRes
     }
     throw new QuoteRequestError('Could not reach the quote service. Try again.', { cause });
   }
+}
+
+export class HistoryQueryError extends Error {}
+
+export interface AttributedSettlement {
+  originChainAsset: string;
+  /**
+   * A human-readable amount (for example "9.969 USDC"), not the raw
+   * smallest-units string `CorrelationRecord.settledAmount` stores.
+   * `getHistory` exposes no raw-units field at all, only this
+   * formatted one, so reconstruction can confirm the same underlying
+   * value (after unit conversion), never byte-for-byte string
+   * equality; named distinctly here so that difference is never
+   * mistaken for a bug.
+   */
+  settledAmountFormatted: string;
+  settledAt: string;
+}
+
+/**
+ * Story 3.1, AC #9: independent reconstruction source for settled
+ * volume, no Redis involved. `getHistory` (`AccountService`, not
+ * `OneClickService`, a real correction caught by `tsc` against this
+ * SDK's actual class layout, not assumed from its free-floating doc
+ * comment) is authenticated with the same JWT `requestQuote` already
+ * carries, so its "authenticated user" is Zephyroute's own integrator
+ * identity, not an individual end-user NEAR Intents account, the same
+ * "1Click's integrator-attributed records" the AC names, though this
+ * hasn't been confirmed against a live call (no real 1Click credential
+ * exists yet in this environment, the same honest gap
+ * `DEFINDEX_VAULT_ADDRESS` already has). A single page is searched, not
+ * the full paginated history: this function reconstructs one specific
+ * address's settlement (the same use the correlation record itself
+ * serves), not the aggregate reporting Story 3.2 covers separately.
+ */
+export async function findAttributedSettlement(
+  stellarAddress: string
+): Promise<AttributedSettlement | null> {
+  let history;
+  try {
+    history = await AccountService.getHistory(
+      undefined,
+      undefined,
+      [HistoryItem.status.SUCCESS],
+      100
+    );
+  } catch (cause) {
+    throw new HistoryQueryError('Could not reach the settlement history service. Try again.', {
+      cause,
+    });
+  }
+
+  const match = history.items.find((item) => item.recipient === stellarAddress);
+  if (!match || !match.originAsset || !match.amountOutFormatted || !match.createdAt) {
+    return null;
+  }
+
+  return {
+    originChainAsset: match.originAsset,
+    settledAmountFormatted: match.amountOutFormatted,
+    settledAt: match.createdAt,
+  };
 }
