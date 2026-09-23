@@ -1,0 +1,34 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-unit) * 0.75);
+  padding-block: var(--space-unit);
+}
+
+.headline {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.explanation {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-unit) * 0.75);
+  padding-left: calc(var(--space-unit) * 2);
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.address {
+  display: block;
+  margin-block: calc(var(--space-unit) * 0.25);
+  word-break: break-all;
+  font-size: 13px;
+  color: var(--color-accent);
+}

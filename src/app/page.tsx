@@ -7,6 +7,7 @@ import { QuoteDisplay } from '@/components/features/QuoteDisplay';
 import { StepTracker } from '@/components/features/StepTracker';
 import { DepositSigningPanel } from '@/components/features/DepositSigningPanel';
 import { AccountSetupFork } from '@/components/features/AccountSetupFork';
+import { ManualFundingFallback } from '@/components/features/ManualFundingFallback';
 import { useWallet } from '@/lib/hooks/useWallet';
 import { useQuote } from '@/lib/hooks/useQuote';
 import { useTrustlineCheck } from '@/lib/hooks/useTrustlineCheck';
@@ -258,7 +259,7 @@ export default function Home() {
                 </Button>
               )}
 
-              {trustline.status === 'missing' && (
+              {trustline.status === 'missing' && !onboarding.providerUnavailable && (
                 <AccountSetupFork
                   status={onboarding.status}
                   errorMessage={onboarding.errorMessage}
@@ -266,6 +267,17 @@ export default function Home() {
                   onCreateAccount={(email) => onboarding.onboard(email, route.stellarAsset)}
                 />
               )}
+
+              {(trustline.status === 'missing' || trustline.status === 'checking') &&
+                onboarding.providerUnavailable &&
+                address && (
+                  <ManualFundingFallback
+                    stellarAddress={address}
+                    asset={route.stellarAsset}
+                    checking={trustline.status === 'checking'}
+                    onCheckAgain={() => trustline.check(address, route.stellarAsset)}
+                  />
+                )}
 
               {trustline.status === 'failed' && trustline.errorMessage && (
                 <p role="alert">{trustline.errorMessage}</p>

@@ -118,4 +118,33 @@ describe('useEmbeddedWalletOnboarding', () => {
     await waitFor(() => expect(result.current.status).toBe('failed'));
     expect(result.current.stellarAddress).toBeNull();
   });
+
+  it('sets providerUnavailable only for ONBOARDING_NOT_CONFIGURED, never an ordinary failure, per Story 2.3', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(503, { error: { code: 'ONBOARDING_NOT_CONFIGURED', message: 'Account setup is not available yet.' } })
+      )
+    );
+    const { result } = renderHook(() => useEmbeddedWalletOnboarding());
+
+    await act(async () => {
+      await result.current.onboard('user@example.com', { code: 'XLM' });
+    });
+
+    await waitFor(() => expect(result.current.providerUnavailable).toBe(true));
+  });
+
+  it('never sets providerUnavailable for an ordinary per-user failure', async () => {
+    mockRoutedFetch();
+    createPasskeyCredential.mockRejectedValue(new Error('User declined the passkey prompt'));
+    const { result } = renderHook(() => useEmbeddedWalletOnboarding());
+
+    await act(async () => {
+      await result.current.onboard('user@example.com', { code: 'XLM' });
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('failed'));
+    expect(result.current.providerUnavailable).toBe(false);
+  });
 });
