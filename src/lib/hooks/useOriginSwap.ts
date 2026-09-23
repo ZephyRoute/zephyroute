@@ -35,7 +35,13 @@ export function useOriginSwap() {
 
         setStatus('signing');
         const tx = buildOriginSwapTransaction(route, depositAddress, amountInSmallestUnits);
-        const hash = await sendTransactionAsync(tx);
+        // route.chainId (PRD Open Question 3 follow-on fix): without
+        // it, the transaction submits on whatever chain the wallet
+        // already happens to be connected to, not necessarily the
+        // selected route's chain, a real correctness gap once more
+        // than one EVM chain is offered. Passing it lets wagmi prompt
+        // a chain switch first when the wallet isn't already there.
+        const hash = await sendTransactionAsync({ ...tx, chainId: route.chainId });
         setTxHash(hash);
         setStatus('submitted');
         return hash;

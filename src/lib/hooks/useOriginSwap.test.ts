@@ -44,6 +44,27 @@ describe('useOriginSwap', () => {
     expect(result.current.txHash).toBe('0xtxhash');
   });
 
+  it('targets the selected route\'s own chain, never whatever chain the wallet happens to be on (PRD Open Question 3 follow-on)', async () => {
+    useAccount.mockReturnValue({ address: '0xuser', isConnected: true });
+    sendTransactionAsync.mockResolvedValue('0xtxhash');
+    const arbitrumRoute = SUPPORTED_ROUTES.find((r) => r.label === 'Arbitrum USDC to Stellar USDC')!;
+
+    const { result } = renderHook(() => useOriginSwap());
+
+    await act(async () => {
+      await result.current.signAndSubmit(
+        arbitrumRoute,
+        '0x1111111111111111111111111111111111111111',
+        '10000000'
+      );
+    });
+
+    expect(sendTransactionAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ chainId: arbitrumRoute.chainId })
+    );
+    expect(arbitrumRoute.chainId).toBe(42161);
+  });
+
   it('skips reconnecting when the wallet is already connected', async () => {
     useAccount.mockReturnValue({ address: '0xuser', isConnected: true });
     sendTransactionAsync.mockResolvedValue('0xtxhash');
