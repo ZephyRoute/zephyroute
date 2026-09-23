@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { loadAccount } = vi.hoisted(() => ({ loadAccount: vi.fn() }));
+const { loadAccount, ledgersCall, submitTransaction } = vi.hoisted(() => ({
+  loadAccount: vi.fn(),
+  ledgersCall: vi.fn(),
+  submitTransaction: vi.fn(),
+}));
 
 vi.mock('@stellar/stellar-sdk', async () => {
   const actual = await vi.importActual<typeof import('@stellar/stellar-sdk')>(
@@ -12,13 +16,41 @@ vi.mock('@stellar/stellar-sdk', async () => {
       ...actual.Horizon,
       Server: class {
         loadAccount = loadAccount;
+        submitTransaction = submitTransaction;
+        ledgers() {
+          return { order: () => ({ limit: () => ({ call: ledgersCall }) }) };
+        }
       },
     },
   };
 });
 
-import { hasTrustline, getAssetBalance, HorizonQueryError } from './horizon';
-import { NotFoundError } from '@stellar/stellar-sdk';
+import {
+  hasTrustline,
+  getAssetBalance,
+  getLedgerTiming,
+  submitDepositTransaction,
+  HorizonQueryError,
+  TransactionSubmissionError,
+} from './horizon';
+import {
+  NotFoundError,
+  Account,
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+  Operation,
+  Keypair,
+} from '@stellar/stellar-sdk';
+
+function buildTestXDR(): string {
+  const account = new Account(Keypair.random().publicKey(), '1');
+  return new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: Networks.PUBLIC })
+    .addOperation(Operation.bumpSequence({ bumpTo: '2' }))
+    .setTimeout(30)
+    .build()
+    .toXDR();
+}
 
 describe('hasTrustline', () => {
   beforeEach(() => {
@@ -103,5 +135,63 @@ describe('getAssetBalance', () => {
     const result = await getAssetBalance('GABCDEF', { code: 'XLM' });
 
     expect(result).toBeNull();
+  });
+});
+
+describe('getLedgerTiming', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('derives the close interval from the two most recent real ledgers, never a hardcoded guess', async () => {
+    ledgersCall.mockResolvedValue({
+      records: [
+        { sequence: 1000, closed_at: '2026-09-21T12:00:10Z' },
+        { sequence: 999, closed_at: '2026-09-21T12:00:05Z' },
+      ],
+    });
+
+    const result = await getLedgerTiming();
+
+    expect(result).toEqual({
+      currentLedgerSeq: 1000,
+      currentLedgerCloseMs: new Date('2026-09-21T12:00:10Z').getTime(),
+      ledgerCloseIntervalMs: 5000,
+    });
+  });
+
+  it('surfaces a Horizon outage explicitly rather than silently failing', async () => {
+    ledgersCall.mockRejectedValue(new Error('network error'));
+
+    await expect(getLedgerTiming()).rejects.toBeInstanceOf(HorizonQueryError);
+  });
+
+  it('refuses to time the window from a single ledger of history', async () => {
+    ledgersCall.mockResolvedValue({ records: [{ sequence: 1000, closed_at: '2026-09-21T12:00:10Z' }] });
+
+    await expect(getLedgerTiming()).rejects.toBeInstanceOf(HorizonQueryError);
+  });
+});
+
+describe('submitDepositTransaction', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('submits the parsed transaction and returns its hash and success flag', async () => {
+    submitTransaction.mockResolvedValue({ hash: 'DEADBEEF', successful: true });
+
+    const result = await submitDepositTransaction(buildTestXDR());
+
+    expect(result).toEqual({ hash: 'DEADBEEF', successful: true });
+    expect(submitTransaction).toHaveBeenCalledOnce();
+  });
+
+  it('wraps a rejected submission as TransactionSubmissionError, never a silent failure', async () => {
+    submitTransaction.mockRejectedValue(new Error('tx_bad_seq'));
+
+    await expect(submitDepositTransaction(buildTestXDR())).rejects.toBeInstanceOf(
+      TransactionSubmissionError
+    );
   });
 });
