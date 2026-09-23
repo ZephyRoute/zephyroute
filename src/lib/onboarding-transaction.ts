@@ -7,9 +7,9 @@ import {
   NotFoundError,
   Operation,
   TransactionBuilder,
-  xdr,
 } from '@stellar/stellar-sdk';
 import type { AssetIdentifier } from '@/lib/horizon';
+import { attachEd25519Signature } from '@/lib/stellar-signature';
 
 export class SponsorConfigError extends Error {}
 export class OnboardingTransactionError extends Error {}
@@ -123,22 +123,7 @@ export async function attachSignatureAndSubmit(
   newAccountPublicKey: string,
   signature: Uint8Array
 ): Promise<{ hash: string; successful: boolean }> {
-  const transaction = TransactionBuilder.fromXDR(partiallySignedXdr, Networks.PUBLIC);
-  if (!('operations' in transaction)) {
-    throw new OnboardingTransactionError('Unexpected fee-bump onboarding transaction.');
-  }
-
-  // xdr.DecoratedSignature's decoder rejects a Node Buffer here, even
-  // though Buffer is itself a Uint8Array subclass, a real, surprising
-  // strictness caught by this function's own test, not assumed away.
-  const hint = new Uint8Array(
-    Keypair.fromPublicKey(newAccountPublicKey).rawPublicKey().subarray(-4)
-  );
-  const decorated = new xdr.DecoratedSignature({
-    hint,
-    signature: new Uint8Array(signature),
-  });
-  transaction.signatures.push(decorated);
+  const transaction = attachEd25519Signature(partiallySignedXdr, newAccountPublicKey, signature);
 
   try {
     const response = await server.submitTransaction(transaction);

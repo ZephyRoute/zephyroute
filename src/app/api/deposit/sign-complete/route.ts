@@ -7,9 +7,9 @@ import {
   DfnsSigningTimeoutError,
 } from '@/lib/dfns-client';
 import {
-  attachSignatureAndSubmit,
-  OnboardingTransactionError,
-} from '@/lib/onboarding-transaction';
+  attachDepositorSignatureAndSubmit,
+  DepositSubmissionError,
+} from '@/lib/deposit-dfns-signing';
 import { toErrorEnvelope } from '@/lib/error-envelope';
 import type { SignUserActionChallengeRequest } from '@dfns/sdk';
 
@@ -17,8 +17,8 @@ interface SignCompleteBody {
   walletId: string;
   hashHex: string;
   signedChallenge: SignUserActionChallengeRequest;
-  partiallySignedXdr: string;
-  stellarAddress: string;
+  unsignedXdr: string;
+  depositorAddress: string;
 }
 
 function isSignCompleteBody(body: unknown): body is SignCompleteBody {
@@ -29,16 +29,20 @@ function isSignCompleteBody(body: unknown): body is SignCompleteBody {
     typeof b.hashHex === 'string' &&
     !!b.signedChallenge &&
     typeof b.signedChallenge === 'object' &&
-    typeof b.partiallySignedXdr === 'string' &&
-    typeof b.stellarAddress === 'string'
+    typeof b.unsignedXdr === 'string' &&
+    typeof b.depositorAddress === 'string'
   );
 }
 
 /**
- * Completes the DFNS signing flow for the new account's portion of
- * the sponsored onboarding transaction, polls until the MPC signature
- * is ready (`generateSignature` is asynchronous), then attaches it and
- * submits, the last step of Story 2.2's onboarding flow.
+ * Issue #16, gap #2: completes DFNS signing for a DeFindex deposit
+ * transaction, polls until the MPC signature is ready, then attaches
+ * it and submits, the deposit-transaction counterpart to
+ * `/api/onboarding/fund/sign-complete`. Unlike the onboarding
+ * transaction (sponsor-cosigned, the new account's signature is
+ * appended to an already partially-signed transaction), the deposit
+ * transaction has the depositor as its sole source account, so
+ * `unsignedXdr` here carries no signatures yet at all.
  */
 export async function POST(request: Request): Promise<Response> {
   let body: unknown;
@@ -55,7 +59,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       toErrorEnvelope(
         'INVALID_REQUEST_BODY',
-        'walletId, hashHex, signedChallenge, partiallySignedXdr, and stellarAddress are required.'
+        'walletId, hashHex, signedChallenge, unsignedXdr, and depositorAddress are required.'
       ),
       { status: 400 }
     );
@@ -69,38 +73,29 @@ export async function POST(request: Request): Promise<Response> {
     );
     const signed = await waitForWalletSignature(body.walletId, initiated.id);
     const signatureBytes = extractSignatureBytes(signed);
-    const submitted = await attachSignatureAndSubmit(
-      body.partiallySignedXdr,
-      body.stellarAddress,
+    const submitted = await attachDepositorSignatureAndSubmit(
+      body.unsignedXdr,
+      body.depositorAddress,
       signatureBytes
     );
-    if (!submitted.successful) {
-      return Response.json(
-        toErrorEnvelope(
-          'ONBOARDING_SUBMISSION_REJECTED',
-          'The onboarding transaction was rejected by the network.'
-        ),
-        { status: 502 }
-      );
-    }
     return Response.json(submitted);
   } catch (cause) {
     if (cause instanceof DfnsConfigError) {
       return Response.json(
-        toErrorEnvelope('ONBOARDING_NOT_CONFIGURED', 'Account setup is not available yet.'),
+        toErrorEnvelope('DFNS_NOT_CONFIGURED', 'DFNS signing is not available right now.'),
         { status: 503 }
       );
     }
     if (cause instanceof DfnsSigningTimeoutError) {
       return Response.json(toErrorEnvelope('SIGNING_TIMEOUT', cause.message), { status: 504 });
     }
-    if (cause instanceof DfnsRequestError || cause instanceof OnboardingTransactionError) {
-      return Response.json(toErrorEnvelope('SIGNING_COMPLETE_FAILED', cause.message), {
+    if (cause instanceof DfnsRequestError || cause instanceof DepositSubmissionError) {
+      return Response.json(toErrorEnvelope('DEPOSIT_SIGNING_COMPLETE_FAILED', cause.message), {
         status: 502,
       });
     }
     return Response.json(
-      toErrorEnvelope('SIGNING_COMPLETE_FAILED', 'Could not complete account setup. Try again.'),
+      toErrorEnvelope('DEPOSIT_SIGNING_COMPLETE_FAILED', 'Could not sign the deposit. Try again.'),
       { status: 500 }
     );
   }

@@ -155,3 +155,44 @@ export async function getWalletSignature(
     throw new DfnsRequestError('Could not check signing status. Try again.', { cause });
   }
 }
+
+export class DfnsSigningTimeoutError extends Error {}
+
+const SIGNATURE_POLL_INTERVAL_MS = 1000;
+const MAX_SIGNATURE_POLL_ATTEMPTS = 20;
+
+/**
+ * Polls `getSignature` until the async MPC signature is ready. Shared
+ * between the onboarding transaction's signing route (Story 2.2) and
+ * the deposit transaction's signing route (Issue #16), both need the
+ * identical wait loop, generateSignature is asynchronous regardless of
+ * which transaction it's signing.
+ */
+export async function waitForWalletSignature(
+  walletId: string,
+  signatureId: string
+): Promise<GetSignatureResponse> {
+  for (let attempt = 0; attempt < MAX_SIGNATURE_POLL_ATTEMPTS; attempt++) {
+    const result = await getWalletSignature(walletId, signatureId);
+    if (result.status === 'Signed' || result.status === 'Confirmed') return result;
+    if (result.status === 'Failed' || result.status === 'Rejected') {
+      throw new DfnsRequestError(
+        `DFNS signing ${result.status.toLowerCase()}: ${result.reason ?? 'no reason given'}`
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, SIGNATURE_POLL_INTERVAL_MS));
+  }
+  throw new DfnsSigningTimeoutError('Signing took too long. Try again.');
+}
+
+/** Extracts raw signature bytes from a completed DFNS signature result. */
+export function extractSignatureBytes(result: GetSignatureResponse): Uint8Array {
+  const signature = result.signature;
+  if (signature?.encoded) {
+    return new Uint8Array(Buffer.from(signature.encoded, 'hex'));
+  }
+  if (signature?.r && signature?.s) {
+    return new Uint8Array(Buffer.from(signature.r + signature.s, 'hex'));
+  }
+  throw new DfnsRequestError('DFNS did not return a usable signature.');
+}

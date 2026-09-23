@@ -86,6 +86,7 @@ describe('useEmbeddedWalletOnboarding', () => {
     await waitFor(() => {
       expect(result.current.status).toBe('completed');
       expect(result.current.stellarAddress).toBe('GNEWACCOUNT');
+      expect(result.current.walletId).toBe('w1');
     });
     expect(createPasskeyCredential).toHaveBeenCalledOnce();
     expect(signWithPasskey).toHaveBeenCalledOnce();

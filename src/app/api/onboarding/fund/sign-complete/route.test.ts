@@ -1,14 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { completeWalletSignature, getWalletSignature, attachSignatureAndSubmit } = vi.hoisted(() => ({
-  completeWalletSignature: vi.fn(),
-  getWalletSignature: vi.fn(),
-  attachSignatureAndSubmit: vi.fn(),
-}));
+const { completeWalletSignature, waitForWalletSignature, attachSignatureAndSubmit } = vi.hoisted(
+  () => ({
+    completeWalletSignature: vi.fn(),
+    waitForWalletSignature: vi.fn(),
+    attachSignatureAndSubmit: vi.fn(),
+  })
+);
 
 vi.mock('@/lib/dfns-client', async () => {
   const actual = await vi.importActual<typeof import('@/lib/dfns-client')>('@/lib/dfns-client');
-  return { ...actual, completeWalletSignature, getWalletSignature };
+  return { ...actual, completeWalletSignature, waitForWalletSignature };
 });
 vi.mock('@/lib/onboarding-transaction', async () => {
   const actual = await vi.importActual<typeof import('@/lib/onboarding-transaction')>(
@@ -47,10 +49,11 @@ describe('POST /api/onboarding/fund/sign-complete', () => {
     expect(completeWalletSignature).not.toHaveBeenCalled();
   });
 
-  it('polls until Signed, extracts the encoded signature, attaches, and submits (happy path)', async () => {
-    getWalletSignature
-      .mockResolvedValueOnce({ status: 'Executing' })
-      .mockResolvedValueOnce({ status: 'Signed', signature: { encoded: 'ab'.repeat(64) } });
+  it('waits for the signature, extracts the encoded signature, attaches, and submits (happy path)', async () => {
+    waitForWalletSignature.mockResolvedValue({
+      status: 'Signed',
+      signature: { encoded: 'ab'.repeat(64) },
+    });
     attachSignatureAndSubmit.mockResolvedValue({ hash: 'DEADBEEF', successful: true });
 
     const response = await POST(postRequest(VALID_BODY));
@@ -66,7 +69,7 @@ describe('POST /api/onboarding/fund/sign-complete', () => {
   });
 
   it('falls back to concatenated r+s when no encoded signature is present', async () => {
-    getWalletSignature.mockResolvedValue({
+    waitForWalletSignature.mockResolvedValue({
       status: 'Signed',
       signature: { r: 'ab'.repeat(32), s: 'cd'.repeat(32) },
     });
@@ -82,7 +85,10 @@ describe('POST /api/onboarding/fund/sign-complete', () => {
   });
 
   it('surfaces a rejected on-chain submission as a 502, never a false success', async () => {
-    getWalletSignature.mockResolvedValue({ status: 'Signed', signature: { encoded: 'ab'.repeat(64) } });
+    waitForWalletSignature.mockResolvedValue({
+      status: 'Signed',
+      signature: { encoded: 'ab'.repeat(64) },
+    });
     attachSignatureAndSubmit.mockResolvedValue({ hash: 'DEADBEEF', successful: false });
 
     const response = await POST(postRequest(VALID_BODY));
@@ -93,7 +99,8 @@ describe('POST /api/onboarding/fund/sign-complete', () => {
   });
 
   it('surfaces a DFNS-reported Failed/Rejected signing as a 502, never a silent hang', async () => {
-    getWalletSignature.mockResolvedValue({ status: 'Failed', reason: 'policy denied' });
+    const { DfnsRequestError } = await import('@/lib/dfns-client');
+    waitForWalletSignature.mockRejectedValue(new DfnsRequestError('DFNS signing failed: policy denied'));
 
     const response = await POST(postRequest(VALID_BODY));
 

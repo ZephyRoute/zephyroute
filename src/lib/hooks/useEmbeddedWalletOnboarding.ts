@@ -18,6 +18,13 @@ export interface UseEmbeddedWalletOnboardingResult {
   errorMessage: string | null;
   stellarAddress: string | null;
   /**
+   * Issue #16: the DFNS wallet ID behind `stellarAddress`, needed to
+   * sign a later transaction (e.g. the DeFindex deposit) via the same
+   * wallet, `walletId` and `stellarAddress` are different identifiers
+   * for the same DFNS wallet, only the address is meaningful on-chain.
+   */
+  walletId: string | null;
+  /**
    * Story 2.3: `true` specifically when the provider itself is not
    * configured (the server's `ONBOARDING_NOT_CONFIGURED` code), never
    * for an ordinary per-user failure (a declined passkey, a rejected
@@ -65,6 +72,7 @@ export function useEmbeddedWalletOnboarding(): UseEmbeddedWalletOnboardingResult
   const [status, setStatus] = useState<OnboardingStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [stellarAddress, setStellarAddress] = useState<string | null>(null);
+  const [walletId, setWalletId] = useState<string | null>(null);
   const [providerUnavailable, setProviderUnavailable] = useState(false);
 
   const onboard = useCallback(async (email: string, asset: AssetIdentifier) => {
@@ -123,6 +131,7 @@ export function useEmbeddedWalletOnboarding(): UseEmbeddedWalletOnboardingResult
       }
 
       setStellarAddress(registered.stellarAddress);
+      setWalletId(registered.walletId);
       setStatus('completed');
       return registered.stellarAddress;
     } catch (cause) {
@@ -139,5 +148,5 @@ export function useEmbeddedWalletOnboarding(): UseEmbeddedWalletOnboardingResult
     }
   }, []);
 
-  return { status, errorMessage, stellarAddress, providerUnavailable, onboard };
+  return { status, errorMessage, stellarAddress, walletId, providerUnavailable, onboard };
 }

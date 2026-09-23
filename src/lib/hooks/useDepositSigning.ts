@@ -10,6 +10,7 @@ import {
   submitDepositTransaction,
 } from '@/lib/horizon';
 import { signDepositTransaction, DepositSigningError } from '@/lib/wallet-kit';
+import { signAndSubmitDepositWithDfns } from '@/lib/dfns-deposit-signing';
 
 export type DepositSigningStatus =
   | 'idle'
@@ -29,6 +30,15 @@ export interface DepositSigningParams {
   depositorAddress: string;
   amountInSmallestUnits: string;
   slippageBps?: number;
+  /**
+   * Issue #16, gap #2: which signing capability actually holds
+   * `depositorAddress`'s key, StellarWalletsKit (the default, every
+   * caller before this) or a DFNS-onboarded passkey wallet. Determines
+   * which signing path `sign()` takes; `dfnsWalletId` is required
+   * when this is `'dfns'`.
+   */
+  signingSource?: 'wallet-kit' | 'dfns';
+  dfnsWalletId?: string;
 }
 
 export interface UseDepositSigningResult {
@@ -98,6 +108,7 @@ export function useDepositSigning(): UseDepositSigningResult {
 
   const paramsRef = useRef<DepositSigningParams | null>(null);
   const xdrRef = useRef<ValidatedTransactionXDR | null>(null);
+  const transactionHashHexRef = useRef<string | null>(null);
   const expirationLedgerRef = useRef<number | null>(null);
   const baselineDfTokensRef = useRef<number | null>(null);
   const vaultAddressRef = useRef<string | null>(null);
@@ -158,6 +169,7 @@ export function useDepositSigning(): UseDepositSigningResult {
       const info = inspectDepositTransaction(xdr);
       signatureExpirationLedger = info.signatureExpirationLedger;
       feeStroops = info.feeStroops;
+      transactionHashHexRef.current = info.transactionHashHex;
     } catch (cause) {
       setStatus('failed');
       setErrorMessage(
@@ -299,6 +311,92 @@ export function useDepositSigning(): UseDepositSigningResult {
     poll();
   }, []);
 
+  const signViaDfns = useCallback(
+    async (xdr: ValidatedTransactionXDR, params: DepositSigningParams) => {
+      const hashHex = transactionHashHexRef.current;
+      if (!params.dfnsWalletId || !hashHex) {
+        setStatus('failed');
+        setErrorMessage('Missing signing wallet. Try again.');
+        return;
+      }
+      try {
+        const submitted = await signAndSubmitDepositWithDfns(
+          xdr,
+          hashHex,
+          params.dfnsWalletId,
+          params.depositorAddress
+        );
+        setTxHash(submitted.hash);
+        if (!submitted.successful) {
+          setStatus('reverted');
+          setErrorMessage(
+            'The deposit was rejected on-chain, for example if the price moved past your slippage tolerance. You can try again.'
+          );
+          return;
+        }
+        setStatus('submitted');
+        if (vaultAddressRef.current) {
+          confirmDeposit(vaultAddressRef.current, params.depositorAddress);
+        }
+      } catch (cause) {
+        setStatus('failed');
+        setErrorMessage(cause instanceof Error ? cause.message : 'Signature failed.');
+      }
+    },
+    [confirmDeposit]
+  );
+
+  const signViaWalletKit = useCallback(
+    async (xdr: ValidatedTransactionXDR, params: DepositSigningParams) => {
+      let signedXdr: string;
+      try {
+        signedXdr = await signDepositTransaction(xdr, params.depositorAddress);
+      } catch (cause) {
+        if (cause instanceof DepositSigningError && cause.reason === 'disconnected') {
+          setStatus('disconnected');
+        } else {
+          setStatus('failed');
+        }
+        setErrorMessage(cause instanceof Error ? cause.message : 'Signature failed.');
+        return;
+      }
+
+      setStatus('submitting');
+      try {
+        const submitted = await submitDepositTransaction(signedXdr);
+        setTxHash(submitted.hash);
+        if (!submitted.successful) {
+          // Story 1.11, AC #3: the transaction reached a ledger but its
+          // own invocation failed on-chain (for example, slippage
+          // exceeded), a distinct outcome from a submission-level
+          // failure, surfaced as its own explicit state, never a
+          // collapsed generic "failed".
+          setStatus('reverted');
+          setErrorMessage(
+            'The deposit was rejected on-chain, for example if the price moved past your slippage tolerance. You can try again.'
+          );
+          return;
+        }
+        setStatus('submitted');
+        if (vaultAddressRef.current) {
+          confirmDeposit(vaultAddressRef.current, params.depositorAddress);
+        }
+      } catch (cause) {
+        setStatus('failed');
+        setErrorMessage(cause instanceof Error ? cause.message : 'Could not submit the deposit.');
+      }
+    },
+    [confirmDeposit]
+  );
+
+  // Issue #16, gap #2: dispatches by `signingSource` rather than
+  // assuming every depositor holds a StellarWalletsKit-compatible
+  // wallet. The DFNS path has no separate client-side submission step
+  // (`/api/deposit/sign-complete` attaches and submits together
+  // server-side, the same shape the onboarding transaction's own
+  // sign-complete route already uses), so it never passes through
+  // `submitting`, unlike the wallet-kit path's genuine two-phase
+  // sign-then-submit; documented, not hidden.
   const sign = useCallback(async () => {
     const xdr = xdrRef.current;
     const params = paramsRef.current;
@@ -307,44 +405,12 @@ export function useDepositSigning(): UseDepositSigningResult {
     setStatus('signing');
     setErrorMessage(null);
 
-    let signedXdr: string;
-    try {
-      signedXdr = await signDepositTransaction(xdr, params.depositorAddress);
-    } catch (cause) {
-      if (cause instanceof DepositSigningError && cause.reason === 'disconnected') {
-        setStatus('disconnected');
-      } else {
-        setStatus('failed');
-      }
-      setErrorMessage(cause instanceof Error ? cause.message : 'Signature failed.');
-      return;
+    if (params.signingSource === 'dfns') {
+      await signViaDfns(xdr, params);
+    } else {
+      await signViaWalletKit(xdr, params);
     }
-
-    setStatus('submitting');
-    try {
-      const submitted = await submitDepositTransaction(signedXdr);
-      setTxHash(submitted.hash);
-      if (!submitted.successful) {
-        // Story 1.11, AC #3: the transaction reached a ledger but its
-        // own invocation failed on-chain (for example, slippage
-        // exceeded), a distinct outcome from a submission-level
-        // failure, surfaced as its own explicit state, never a
-        // collapsed generic "failed".
-        setStatus('reverted');
-        setErrorMessage(
-          'The deposit was rejected on-chain, for example if the price moved past your slippage tolerance. You can try again.'
-        );
-        return;
-      }
-      setStatus('submitted');
-      if (vaultAddressRef.current) {
-        confirmDeposit(vaultAddressRef.current, params.depositorAddress);
-      }
-    } catch (cause) {
-      setStatus('failed');
-      setErrorMessage(cause instanceof Error ? cause.message : 'Could not submit the deposit.');
-    }
-  }, [confirmDeposit]);
+  }, [signViaDfns, signViaWalletKit]);
 
   return {
     status,
