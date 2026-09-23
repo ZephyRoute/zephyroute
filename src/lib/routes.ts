@@ -29,7 +29,7 @@ export interface SupportedRoute {
   stellarAsset: AssetIdentifier;
 }
 
-const STELLAR_USDC: AssetIdentifier = {
+export const STELLAR_USDC: AssetIdentifier = {
   code: 'USDC',
   issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
 };

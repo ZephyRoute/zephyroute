@@ -20,3 +20,8 @@
   font-size: 14px;
   color: var(--color-error-text);
 }
+
+.status {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
