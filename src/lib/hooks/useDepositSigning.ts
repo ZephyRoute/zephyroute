@@ -166,7 +166,13 @@ export function useDepositSigning(): UseDepositSigningResult {
     let signatureExpirationLedger: number;
     let feeStroops: string;
     try {
-      const info = inspectDepositTransaction(xdr);
+      // Security review finding: verified against the requested vault
+      // and this depositor's own address before ever reaching the
+      // signature prompt, not just structurally validated.
+      const info = inspectDepositTransaction(xdr, {
+        vaultAddress: responseVaultAddress,
+        depositorAddress: params.depositorAddress,
+      });
       signatureExpirationLedger = info.signatureExpirationLedger;
       feeStroops = info.feeStroops;
       transactionHashHexRef.current = info.transactionHashHex;

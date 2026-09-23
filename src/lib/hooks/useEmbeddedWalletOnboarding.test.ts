@@ -33,6 +33,7 @@ function mockRoutedFetch(overrides: Partial<Record<string, unknown>> = {}) {
               userId: 'u1',
               walletId: 'w1',
               stellarAddress: 'GNEWACCOUNT',
+              registrationToken: 'reg-token-1',
             }
           )
         );
@@ -90,6 +91,12 @@ describe('useEmbeddedWalletOnboarding', () => {
     });
     expect(createPasskeyCredential).toHaveBeenCalledOnce();
     expect(signWithPasskey).toHaveBeenCalledOnce();
+
+    const fundBuildCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) => input.toString().includes('/fund/build'));
+    const fundBuildBody = JSON.parse((fundBuildCall?.[1] as RequestInit).body as string);
+    expect(fundBuildBody.registrationToken).toBe('reg-token-1');
   });
 
   it('never reaches funding at all if passkey registration fails', async () => {

@@ -89,6 +89,12 @@ describe('useDepositSigning', () => {
     expect(result.current.amountInSmallestUnits).toBe('10000000');
     expect(result.current.minimumGuaranteedInSmallestUnits).toBe('9900000');
     expect(result.current.secondsRemaining).toBeGreaterThan(0);
+    // Security review finding: inspected against the real requested
+    // vault and this depositor's own address, not just parsed blindly.
+    expect(inspectDepositTransaction).toHaveBeenCalledWith(VALID_XDR, {
+      vaultAddress: 'CVAULT',
+      depositorAddress: 'GDEPOSITOR',
+    });
   });
 
   it('stops at insufficient-fee before ever reaching a signature prompt, per AC #4', async () => {

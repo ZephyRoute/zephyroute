@@ -1,4 +1,5 @@
 import { completeEndUserRegistration, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
+import { issueRegistrationToken } from '@/lib/onboarding-registration-token';
 import { toErrorEnvelope } from '@/lib/error-envelope';
 import type { RegisterEndUserBody } from '@dfns/sdk/generated/auth';
 
@@ -44,11 +45,20 @@ export async function POST(request: Request): Promise<Response> {
         { status: 502 }
       );
     }
+    // Security review finding: this token is what proves, to
+    // `/api/onboarding/fund/build`, that `wallet.address` genuinely
+    // came from a DFNS registration that just completed, not an
+    // attacker-chosen address. Without it, funding would have to
+    // trust the client-supplied address alone, see
+    // `lib/onboarding-registration-token.ts` for the full finding.
+    const registrationToken = await issueRegistrationToken(wallet.address, wallet.id);
+
     return Response.json({
       userId: result.user.id,
       authToken: result.authentication.token,
       walletId: wallet.id,
       stellarAddress: wallet.address,
+      registrationToken,
     });
   } catch (cause) {
     if (cause instanceof DfnsConfigError) {
