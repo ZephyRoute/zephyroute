@@ -110,7 +110,11 @@ describe('useOriginSwap', () => {
   it('dispatches a Solana route to the Wallet Standard path, never wagmi (Issue: Solana origin support)', async () => {
     useAccount.mockReturnValue({ address: undefined, isConnected: false });
     const solanaRoute = SUPPORTED_ROUTES.find((r) => r.originChain === 'solana')!;
-    connectSolanaWallet.mockResolvedValue({ address: 'GSOLANADEPOSITOR' });
+    const fakeWallet = { name: 'Fake Wallet' };
+    connectSolanaWallet.mockResolvedValue({
+      wallet: fakeWallet,
+      account: { address: 'GSOLANADEPOSITOR' },
+    });
     buildSolanaSwapTransaction.mockResolvedValue(new Uint8Array([1, 2, 3]));
     signAndSendSolanaTransaction.mockResolvedValue('5SigBase58');
 
@@ -127,7 +131,13 @@ describe('useOriginSwap', () => {
       'GSOLANADEPOSITADDRESS',
       '10000000'
     );
-    expect(signAndSendSolanaTransaction).toHaveBeenCalledOnce();
+    // Multi-wallet-extension race fix: signs with the exact wallet
+    // instance connectSolanaWallet resolved, never a fresh lookup.
+    expect(signAndSendSolanaTransaction).toHaveBeenCalledWith(
+      fakeWallet,
+      { address: 'GSOLANADEPOSITOR' },
+      new Uint8Array([1, 2, 3])
+    );
     expect(connectAsync).not.toHaveBeenCalled();
     expect(sendTransactionAsync).not.toHaveBeenCalled();
     expect(result.current.status).toBe('submitted');
