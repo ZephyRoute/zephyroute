@@ -47,6 +47,18 @@ jobs:
         # switch back to npm ci once the lockfile gap above is closed
         # for real.
         run: npm install
+      - name: Generate Next.js route types
+        # `tsc --noEmit` below needs `.next/types` to exist first, it's
+        # where Next.js's own generated ambient types (RouteContext for
+        # dynamic API routes, etc.) live; without this the typecheck
+        # step fails on every dynamic route with "Cannot find name
+        # 'RouteContext'", the same stale/missing-types failure hit
+        # repeatedly this session locally after checking out a branch
+        # with a different set of routes, worked around there with
+        # `rm -rf .next && npx next typegen`. CI starts with no `.next`
+        # at all, so it needs the generation step unconditionally, not
+        # just the cache-clear half of that workaround.
+        run: npx next typegen
       - name: ESLint (includes ARIA/accessibility rules)
         run: npm run lint
       - name: Stylelint (design-token discipline)
