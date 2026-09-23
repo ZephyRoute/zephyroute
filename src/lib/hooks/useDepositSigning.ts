@@ -11,6 +11,7 @@ import {
 } from '@/lib/horizon';
 import { signDepositTransaction, DepositSigningError } from '@/lib/wallet-kit';
 import { signAndSubmitDepositWithDfns } from '@/lib/dfns-deposit-signing';
+import { getOrCreateCorrelationWriteProof } from '@/lib/correlation-write-proof';
 
 export type DepositSigningStatus =
   | 'idle'
@@ -54,7 +55,7 @@ export interface UseDepositSigningResult {
   txHash: string | null;
   dfTokens: number | null;
   start: (params: DepositSigningParams) => Promise<void>;
-  sign: () => Promise<void>;
+  sign: (signMessage: (message: string) => Promise<string>) => Promise<void>;
 }
 
 const RESYNC_INTERVAL_MS = 20000;
@@ -279,46 +280,65 @@ export function useDepositSigning(): UseDepositSigningResult {
   // function's own `setStatus('confirming on-chain')` would otherwise
   // immediately retrigger and tear down such an effect before its
   // interval ever got to fire a second time.
-  const confirmDeposit = useCallback((vault: string, depositorAddress: string) => {
-    setStatus('confirming on-chain');
-    const baseline = baselineDfTokensRef.current ?? 0;
+  const confirmDeposit = useCallback(
+    (vault: string, depositorAddress: string, signMessage: (message: string) => Promise<string>) => {
+      setStatus('confirming on-chain');
+      const baseline = baselineDfTokensRef.current ?? 0;
 
-    const poll = async () => {
-      try {
-        const balance = await fetchVaultBalance(vault, depositorAddress);
-        if (unmountedRef.current) return;
-        if (balance.dfTokens > baseline) {
-          setDfTokens(balance.dfTokens);
-          setStatus('completed');
-          fetch('/api/correlation', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              stellarAddress: depositorAddress,
-              destinationVault: vault,
-              depositStatus: 'completed',
-              depositConfirmedAt: new Date().toISOString(),
-            }),
-          }).catch(() => {
-            // Rule #9: a failed cache update is never treated as a
-            // failed deposit, the funds are already confirmed earning.
-          });
-          return;
+      const poll = async () => {
+        try {
+          const balance = await fetchVaultBalance(vault, depositorAddress);
+          if (unmountedRef.current) return;
+          if (balance.dfTokens > baseline) {
+            setDfTokens(balance.dfTokens);
+            setStatus('completed');
+            (async () => {
+              try {
+                const { message, signature } = await getOrCreateCorrelationWriteProof(
+                  depositorAddress,
+                  signMessage
+                );
+                await fetch('/api/correlation', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    stellarAddress: depositorAddress,
+                    destinationVault: vault,
+                    depositStatus: 'completed',
+                    depositConfirmedAt: new Date().toISOString(),
+                    message,
+                    signature,
+                  }),
+                });
+              } catch {
+                // Rule #9: a failed cache update (or a declined
+                // write-proof signature) is never treated as a failed
+                // deposit, the funds are already confirmed earning.
+              }
+            })();
+            return;
+          }
+        } catch {
+          // A transient poll failure doesn't fail the deposit, the
+          // next poll tries again rather than giving up on a real
+          // confirmation.
         }
-      } catch {
-        // A transient poll failure doesn't fail the deposit, the next
-        // poll tries again rather than giving up on a real confirmation.
-      }
-      if (!unmountedRef.current) {
-        confirmationTimeoutRef.current = setTimeout(poll, CONFIRMATION_POLL_INTERVAL_MS);
-      }
-    };
+        if (!unmountedRef.current) {
+          confirmationTimeoutRef.current = setTimeout(poll, CONFIRMATION_POLL_INTERVAL_MS);
+        }
+      };
 
-    poll();
-  }, []);
+      poll();
+    },
+    []
+  );
 
   const signViaDfns = useCallback(
-    async (xdr: ValidatedTransactionXDR, params: DepositSigningParams) => {
+    async (
+      xdr: ValidatedTransactionXDR,
+      params: DepositSigningParams,
+      signMessage: (message: string) => Promise<string>
+    ) => {
       const hashHex = transactionHashHexRef.current;
       if (!params.dfnsWalletId || !hashHex) {
         setStatus('failed');
@@ -342,7 +362,7 @@ export function useDepositSigning(): UseDepositSigningResult {
         }
         setStatus('submitted');
         if (vaultAddressRef.current) {
-          confirmDeposit(vaultAddressRef.current, params.depositorAddress);
+          confirmDeposit(vaultAddressRef.current, params.depositorAddress, signMessage);
         }
       } catch (cause) {
         setStatus('failed');
@@ -353,7 +373,11 @@ export function useDepositSigning(): UseDepositSigningResult {
   );
 
   const signViaWalletKit = useCallback(
-    async (xdr: ValidatedTransactionXDR, params: DepositSigningParams) => {
+    async (
+      xdr: ValidatedTransactionXDR,
+      params: DepositSigningParams,
+      signMessage: (message: string) => Promise<string>
+    ) => {
       let signedXdr: string;
       try {
         signedXdr = await signDepositTransaction(xdr, params.depositorAddress);
@@ -385,7 +409,7 @@ export function useDepositSigning(): UseDepositSigningResult {
         }
         setStatus('submitted');
         if (vaultAddressRef.current) {
-          confirmDeposit(vaultAddressRef.current, params.depositorAddress);
+          confirmDeposit(vaultAddressRef.current, params.depositorAddress, signMessage);
         }
       } catch (cause) {
         setStatus('failed');
@@ -403,20 +427,28 @@ export function useDepositSigning(): UseDepositSigningResult {
   // sign-complete route already uses), so it never passes through
   // `submitting`, unlike the wallet-kit path's genuine two-phase
   // sign-then-submit; documented, not hidden.
-  const sign = useCallback(async () => {
-    const xdr = xdrRef.current;
-    const params = paramsRef.current;
-    if (!xdr || !params) return;
+  //
+  // `signMessage` (security review follow-on): signs the correlation
+  // write-proof (`lib/auth-nonce.ts`) once the deposit confirms,
+  // `useActiveIdentity`'s own dispatcher, the caller never needs to
+  // know or branch on which signing source is active either.
+  const sign = useCallback(
+    async (signMessage: (message: string) => Promise<string>) => {
+      const xdr = xdrRef.current;
+      const params = paramsRef.current;
+      if (!xdr || !params) return;
 
-    setStatus('signing');
-    setErrorMessage(null);
+      setStatus('signing');
+      setErrorMessage(null);
 
-    if (params.signingSource === 'dfns') {
-      await signViaDfns(xdr, params);
-    } else {
-      await signViaWalletKit(xdr, params);
-    }
-  }, [signViaDfns, signViaWalletKit]);
+      if (params.signingSource === 'dfns') {
+        await signViaDfns(xdr, params, signMessage);
+      } else {
+        await signViaWalletKit(xdr, params, signMessage);
+      }
+    },
+    [signViaDfns, signViaWalletKit]
+  );
 
   return {
     status,

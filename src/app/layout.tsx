@@ -25,7 +25,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Zephyroute",
   description:
-    "Move stablecoins or BTC from Ethereum, Arbitrum, or Bitcoin into Stellar yield in two wallet signatures.",
+    "Move stablecoins or BTC from Ethereum, Arbitrum, or Bitcoin into Stellar yield in three wallet signatures.",
 };
 
 export default function RootLayout({

@@ -14,7 +14,7 @@ This PRD is for whoever picks up this project next — a downstream architecture
 
 ## 1. Vision
 
-Stellar Intents Gateway lets someone holding stablecoins or BTC on Ethereum, Arbitrum, or Bitcoin put that capital to work earning yield on Stellar — in two signatures, without learning Stellar's account model, without a bridge the product operates itself, and without the product ever touching their funds.
+Stellar Intents Gateway lets someone holding stablecoins or BTC on Ethereum, Arbitrum, or Bitcoin put that capital to work earning yield on Stellar in three signatures, only two of which move funds, without learning Stellar's account model, without a bridge the product operates itself, and without the product ever touching their funds.
 
 It is not a new protocol. It is a composition of two things that already work in production: **NEAR Intents** (cross-chain swap settlement via solver-run, MPC-secured bridging) gets external capital into the user's own Stellar account; **DeFindex** (audited, non-custodial yield vaults routing into Blend v2) gives that capital somewhere productive to land. Nobody has fused these two specific pieces before — research turned up adjacent products (a bridge aggregator that lists NEAR Intents as one route, several products that land capital in DeFindex from other rails) but none that chain NEAR Intents' cross-chain settlement directly into a DeFindex deposit as a single flow. That gap, not a new smart contract, is the product.
 
