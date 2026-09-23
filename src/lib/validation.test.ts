@@ -2,9 +2,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const set = vi.fn();
 const get = vi.fn();
+const zadd = vi.fn();
 
 vi.mock('@/lib/redis', () => ({
-  getRedisClient: () => ({ set, get }),
+  getRedisClient: () => ({ set, get, zadd }),
 }));
 
 import {
@@ -83,6 +84,22 @@ describe('writeCorrelationRecord', () => {
       `correlation:${validRecord.stellarAddress}`,
       JSON.stringify(validRecord)
     );
+  });
+
+  it('appends to the append-only settlement log (Issue #22), scored by settlement time', async () => {
+    await writeCorrelationRecord(validRecord);
+
+    expect(zadd).toHaveBeenCalledWith('settlement-log', {
+      score: Date.parse(validRecord.settledAt),
+      member: `${validRecord.stellarAddress}:${validRecord.correlationId}`,
+    });
+  });
+
+  it('still persists the correlation record even if the settlement-log append fails (Rule #9)', async () => {
+    zadd.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    await expect(writeCorrelationRecord(validRecord)).resolves.toBeUndefined();
+    expect(set).toHaveBeenCalledOnce();
   });
 });
 

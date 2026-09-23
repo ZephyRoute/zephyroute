@@ -10,6 +10,11 @@ function formatStroops(value: string): string {
   return (Number(value) / 1e7).toLocaleString('en-US', { maximumFractionDigits: 7 });
 }
 
+function formatRecurrenceRate(rate: number | null): string {
+  if (rate === null) return 'Not available right now';
+  return `${(rate * 100).toLocaleString('en-US', { maximumFractionDigits: 1 })}%`;
+}
+
 /**
  * Story 3.2: project-team-facing traction view, protected by Vercel's
  * own deployment protection (a dashboard setting, not application
@@ -39,18 +44,22 @@ export default async function MetricsPage() {
         <dd>{metrics.uniqueFundedAddresses}</dd>
 
         <dt>7-day recurrence rate</dt>
-        <dd>{metrics.recurrenceRate7d ?? 'Not yet trackable'}</dd>
+        <dd>{formatRecurrenceRate(metrics.recurrenceRate7d)}</dd>
 
         <dt>30-day recurrence rate</dt>
-        <dd>{metrics.recurrenceRate30d ?? 'Not yet trackable'}</dd>
+        <dd>{formatRecurrenceRate(metrics.recurrenceRate30d)}</dd>
       </dl>
 
       {(metrics.recurrenceRate7d === null || metrics.recurrenceRate30d === null) && (
         <p role="status" className={styles.note}>
-          Recurrence rate is not yet computable: the correlation record is stored per address,
-          overwritten on each flow, with no per-flow history to derive a recurrence rate from.
+          Recurrence rate could not be read just now, try refreshing.
         </p>
       )}
+      <p className={styles.note}>
+        Recurrence rate is derived from an append-only settlement log; addresses that settled
+        before this log started being written are undercounted, not overcounted, in either
+        window.
+      </p>
     </main>
   );
 }
