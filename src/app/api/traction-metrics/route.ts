@@ -1,5 +1,6 @@
 import { computeTractionMetrics, TractionMetricsError } from '@/lib/traction-metrics';
 import { toErrorEnvelope } from '@/lib/error-envelope';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 /**
  * Story 3.2: a project-team-facing aggregate, distinct from Story
@@ -10,7 +11,14 @@ import { toErrorEnvelope } from '@/lib/error-envelope';
  * autonomously, the same pattern Story 1.3 already used for GitHub
  * branch protection.
  */
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  if (!(await checkRateLimit(getClientIp(request)))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
+    );
+  }
+
   try {
     const metrics = await computeTractionMetrics();
     return Response.json(metrics);

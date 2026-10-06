@@ -1,5 +1,6 @@
 import { startEndUserRegistration, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
 import { toErrorEnvelope } from '@/lib/error-envelope';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 interface RegisterChallengeBody {
   email: string;
@@ -31,6 +32,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       toErrorEnvelope('INVALID_REQUEST_BODY', 'email and externalId are required.'),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(getClientIp(request)))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 

@@ -3,6 +3,7 @@ import { getDepositorVaultBalance, requiredVaultAddress, DepositBuildError } fro
 import { getRedisClient } from '@/lib/redis';
 import type { CorrelationRecord } from '@/lib/validation';
 import { toErrorEnvelope } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 type CorrelationStatusResponse =
   | { status: 'earning'; vaultAddress: string; dfTokens: number }
@@ -27,6 +28,13 @@ export async function GET(
     return Response.json(
       toErrorEnvelope('INVALID_REQUEST_BODY', 'message and signature query parameters are required.'),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(address))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 

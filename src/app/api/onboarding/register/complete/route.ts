@@ -1,6 +1,7 @@
 import { completeEndUserRegistration, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
 import { issueRegistrationToken } from '@/lib/onboarding-registration-token';
 import { toErrorEnvelope } from '@/lib/error-envelope';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 import type { RegisterEndUserBody } from '@dfns/sdk/generated/auth';
 
 interface RegisterCompleteBody {
@@ -33,6 +34,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       toErrorEnvelope('INVALID_REQUEST_BODY', 'firstFactorCredential and walletName are required.'),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(getClientIp(request)))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 

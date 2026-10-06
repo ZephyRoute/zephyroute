@@ -1,5 +1,6 @@
 import { initWalletSignature, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
 import { toErrorEnvelope } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 interface SignInitBody {
   walletId: string;
@@ -37,6 +38,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       toErrorEnvelope('INVALID_REQUEST_BODY', 'walletId and hashHex are required.'),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(body.walletId))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 

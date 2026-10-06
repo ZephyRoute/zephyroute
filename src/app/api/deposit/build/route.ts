@@ -1,6 +1,7 @@
 import { buildDepositTransaction, DepositBuildError } from '@/lib/defindex-client';
 import { InvalidTransactionXDRError } from '@/lib/validation';
 import { toErrorEnvelope } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 interface BuildDepositRequestBody {
   depositorAddress: string;
@@ -39,6 +40,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       toErrorEnvelope('INVALID_REQUEST_BODY', 'Missing or malformed deposit request fields.'),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(body.depositorAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 
