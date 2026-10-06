@@ -10,7 +10,7 @@ import {
   submitDepositTransaction,
 } from '@/lib/horizon';
 import { signDepositTransaction, DepositSigningError } from '@/lib/wallet-kit';
-import { signAndSubmitDepositWithDfns } from '@/lib/dfns-deposit-signing';
+import { signAndSubmitDepositWithDfns } from '@/lib/deposit-dfns-client-signing';
 
 export type DepositSigningStatus =
   | 'idle'
