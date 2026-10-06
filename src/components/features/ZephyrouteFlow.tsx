@@ -16,6 +16,7 @@ import { useSettlementStatus } from '@/lib/hooks/useSettlementStatus';
 import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
 import { useCorrelationResume } from '@/lib/hooks/useCorrelationResume';
 import { getAssetBalance } from '@/lib/horizon';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 import type { FlowStage } from '@/lib/types';
 
@@ -94,7 +95,7 @@ export function ZephyrouteFlow() {
   useEffect(() => {
     if (!settlement.settled || correlationWrittenRef.current || !address || !quote) return;
     correlationWrittenRef.current = true;
-    fetch('/api/correlation', {
+    fetchWithTimeout('/api/correlation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
