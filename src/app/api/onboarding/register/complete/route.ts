@@ -1,6 +1,6 @@
 import { completeEndUserRegistration, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
 import { issueRegistrationToken } from '@/lib/onboarding-registration-token';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 import type { RegisterEndUserBody } from '@dfns/sdk/generated/auth';
 
 interface RegisterCompleteBody {
@@ -40,6 +40,11 @@ export async function POST(request: Request): Promise<Response> {
     const result = await completeEndUserRegistration(body.firstFactorCredential, body.walletName);
     const wallet = result.wallets.find((w) => w.network === 'Stellar');
     if (!wallet?.address) {
+      logServerError(
+        'onboarding.register.complete',
+        'REGISTRATION_FAILED',
+        new Error('DFNS did not return a Stellar wallet address.')
+      );
       return Response.json(
         toErrorEnvelope('REGISTRATION_FAILED', 'DFNS did not return a Stellar wallet address.'),
         { status: 502 }
@@ -70,6 +75,7 @@ export async function POST(request: Request): Promise<Response> {
     if (cause instanceof DfnsRequestError) {
       return Response.json(toErrorEnvelope('REGISTRATION_FAILED', cause.message), { status: 502 });
     }
+    logServerError('onboarding.register.complete', 'REGISTRATION_FAILED', cause);
     return Response.json(
       toErrorEnvelope('REGISTRATION_FAILED', 'Could not finish account setup.'),
       { status: 500 }

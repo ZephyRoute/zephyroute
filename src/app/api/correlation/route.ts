@@ -4,7 +4,7 @@ import {
   InvalidCorrelationRecordError,
   CorrelationRecordNotFoundError,
 } from '@/lib/validation';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 
 /**
  * `writeCorrelationRecord` carries the Upstash Redis REST token, a
@@ -42,6 +42,7 @@ export async function POST(request: Request): Promise<Response> {
     // Rule #9: a failed cache write is never treated as a failed
     // settlement by the caller, but it must still be reported here,
     // never swallowed silently at this layer.
+    logServerError('correlation.POST', 'CORRELATION_WRITE_FAILED', cause);
     return Response.json(
       toErrorEnvelope('CORRELATION_WRITE_FAILED', 'Could not record this deposit. Try again.'),
       { status: 502 }
@@ -107,6 +108,7 @@ export async function PATCH(request: Request): Promise<Response> {
         status: 400,
       });
     }
+    logServerError('correlation.PATCH', 'CORRELATION_WRITE_FAILED', cause);
     return Response.json(
       toErrorEnvelope('CORRELATION_WRITE_FAILED', 'Could not record this deposit. Try again.'),
       { status: 502 }

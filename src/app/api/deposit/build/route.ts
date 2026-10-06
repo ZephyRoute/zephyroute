@@ -1,6 +1,6 @@
 import { buildDepositTransaction, DepositBuildError } from '@/lib/defindex-client';
 import { InvalidTransactionXDRError } from '@/lib/validation';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 
 interface BuildDepositRequestBody {
   depositorAddress: string;
@@ -51,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ xdr, vaultAddress });
   } catch (cause) {
     if (cause instanceof InvalidTransactionXDRError) {
+      logServerError('deposit.build', 'INVALID_DEPOSIT_XDR', cause);
       return Response.json(
         toErrorEnvelope(
           'INVALID_DEPOSIT_XDR',
@@ -64,6 +65,7 @@ export async function POST(request: Request): Promise<Response> {
         status: 502,
       });
     }
+    logServerError('deposit.build', 'DEPOSIT_BUILD_FAILED', cause);
     return Response.json(
       toErrorEnvelope('DEPOSIT_BUILD_FAILED', 'Could not prepare the deposit. Try again.'),
       { status: 500 }

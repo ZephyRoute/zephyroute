@@ -1,5 +1,5 @@
 import { startEndUserRegistration, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 
 interface RegisterChallengeBody {
   email: string;
@@ -49,6 +49,7 @@ export async function POST(request: Request): Promise<Response> {
         status: 502,
       });
     }
+    logServerError('onboarding.register.challenge', 'REGISTRATION_CHALLENGE_FAILED', cause);
     return Response.json(
       toErrorEnvelope('REGISTRATION_CHALLENGE_FAILED', 'Could not start account setup.'),
       { status: 500 }

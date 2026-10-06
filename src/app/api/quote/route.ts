@@ -4,7 +4,7 @@ import {
   MissingIntegratorIdError,
   type RequestQuoteParams,
 } from '@/lib/one-click-client';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 
 function isRequestQuoteParams(body: unknown): body is RequestQuoteParams {
   if (!body || typeof body !== 'object') return false;
@@ -57,6 +57,7 @@ export async function POST(request: Request): Promise<Response> {
         { status: 500 }
       );
     }
+    logServerError('quote', 'QUOTE_REQUEST_FAILED', cause);
     return Response.json(
       toErrorEnvelope('QUOTE_REQUEST_FAILED', 'Could not reach the quote service. Try again.'),
       { status: 502 }
