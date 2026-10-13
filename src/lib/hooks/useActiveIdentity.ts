@@ -1,14 +1,17 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useWallet, type UseWalletResult } from '@/lib/hooks/useWallet';
 import {
   useEmbeddedWalletOnboarding,
   type UseEmbeddedWalletOnboardingResult,
 } from '@/lib/hooks/useEmbeddedWalletOnboarding';
+import { signChallengeMessage } from '@/lib/wallet-kit';
 
 export type IdentitySource = 'wallet-kit' | 'dfns';
 export type IdentityStatus = 'disconnected' | 'connecting' | 'connected' | 'failed';
+
+export class NoActiveIdentityError extends Error {}
 
 export interface UseActiveIdentityResult {
   address: string | null;
@@ -19,6 +22,15 @@ export interface UseActiveIdentityResult {
   errorMessage: string | null;
   wallet: UseWalletResult;
   onboarding: UseEmbeddedWalletOnboardingResult;
+  /**
+   * Security review follow-on: signs a SEP-53 challenge message (never
+   * a transaction) with whichever signing capability actually holds
+   * `address`'s key, dispatching by `source` exactly like
+   * `useDepositSigning`'s deposit-signing dispatch already does.
+   * Callers (the correlation read/write proofs) never need to know or
+   * branch on which path is active.
+   */
+  signMessage: (message: string) => Promise<string>;
 }
 
 /**
@@ -41,26 +53,50 @@ export function useActiveIdentity(): UseActiveIdentityResult {
   const wallet = useWallet();
   const onboarding = useEmbeddedWalletOnboarding();
 
+  const isDfns = onboarding.status === 'completed' && !!onboarding.stellarAddress;
+  const address = isDfns ? onboarding.stellarAddress : wallet.address;
+  const dfnsWalletId = isDfns ? onboarding.walletId : null;
+  const source: IdentitySource | null = isDfns ? 'dfns' : wallet.status === 'connected' ? 'wallet-kit' : null;
+
+  const signMessage = useCallback(
+    async (message: string): Promise<string> => {
+      if (!address || !source) {
+        throw new NoActiveIdentityError('No connected wallet or onboarded account to sign with.');
+      }
+      if (source === 'dfns') {
+        if (!dfnsWalletId) {
+          throw new NoActiveIdentityError('Missing DFNS wallet ID for the active identity.');
+        }
+        const { signMessageWithDfns } = await import('@/lib/dfns-message-signing');
+        return signMessageWithDfns(dfnsWalletId, message);
+      }
+      return signChallengeMessage(address, message);
+    },
+    [address, source, dfnsWalletId]
+  );
+
   return useMemo(() => {
-    if (onboarding.status === 'completed' && onboarding.stellarAddress) {
+    if (isDfns) {
       return {
-        address: onboarding.stellarAddress,
+        address,
         source: 'dfns' as const,
-        dfnsWalletId: onboarding.walletId,
+        dfnsWalletId,
         status: 'connected' as const,
         errorMessage: null,
         wallet,
         onboarding,
+        signMessage,
       };
     }
     return {
       address: wallet.address,
-      source: wallet.status === 'connected' ? ('wallet-kit' as const) : null,
+      source,
       dfnsWalletId: null,
       status: wallet.status,
       errorMessage: wallet.errorMessage,
       wallet,
       onboarding,
+      signMessage,
     };
-  }, [wallet, onboarding]);
+  }, [isDfns, address, dfnsWalletId, source, wallet, onboarding, signMessage]);
 }

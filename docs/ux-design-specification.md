@@ -23,7 +23,7 @@ date: '2026-08-26'
 
 ### Project Vision
 
-Zephyroute lets someone holding stablecoins or BTC on Ethereum, Arbitrum, or Bitcoin put that capital to work earning yield on Stellar — in two signatures, without learning Stellar's account model, without a bridge the product operates itself, and without the product ever touching their funds. It fuses two already-live, already-audited systems (NEAR Intents for cross-chain acquisition, DeFindex for yield) that nobody has chained together as a single flow before. The product's job is to be the thinnest possible layer between them.
+Zephyroute lets someone holding stablecoins or BTC on Ethereum, Arbitrum, or Bitcoin put that capital to work earning yield on Stellar in three signatures, only two of which move funds, without learning Stellar's account model, without a bridge the product operates itself, and without the product ever touching their funds. It fuses two already-live, already-audited systems (NEAR Intents for cross-chain acquisition, DeFindex for yield) that nobody has chained together as a single flow before. The product's job is to be the thinnest possible layer between them.
 
 ### Target Users
 
@@ -98,13 +98,13 @@ Web, multi-container: standalone app plus an embedded widget inside partner apps
 **Marcus (new to Stellar, UJ-2):**
 - No prior mental model of Stellar, bridging, or trustlines.
 - Closest usable anchor: a savings account (deposit, watch it grow, withdraw), not an exchange (which implies trading and price risk that does not apply here).
-- Confusion risk: the two required signatures do not fit a savings-account model and must be explained explicitly at the moment they happen, not left implicit.
+- Confusion risk: the three required signatures (two that move funds, plus a brief identity-verification prompt at settlement) do not fit a savings-account model and must be explained explicitly at the moment they happen, not left implicit.
 
 ### Success Criteria
 
 - **Priya:** the end-to-end flow feels faster than doing it herself across two separate apps, her own personal benchmark.
 - **Marcus:** zero moments where he has to leave the flow to look something up externally (no need to understand trustlines or reserves to finish).
-- **Universal:** the fact that the entire journey required exactly two signatures is reinforced explicitly at completion ("2 signatures. Done."), as a concrete, countable proof point, not just an implied feeling.
+- **Universal:** the fact that the entire journey required exactly three signatures is reinforced explicitly at completion ("3 signatures. Done."), as a concrete, countable proof point, not just an implied feeling.
 
 ### Novel UX Patterns
 

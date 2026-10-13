@@ -109,13 +109,15 @@ export async function signDepositTransaction(
 export class ChallengeSigningError extends Error {}
 
 /**
- * Story 1.12, AC #1: signs the fixed `zephyroute:correlation-read:`
- * challenge (SEP-53 message signing, not a transaction), the proof the
- * gateway requires before returning any status for this address,
- * closing the enumeration/privacy gap an open address-only lookup
- * would otherwise have.
+ * Story 1.12, AC #1 / security review follow-on: signs a SEP-53
+ * challenge message (never a transaction), the proof the gateway
+ * requires before trusting a caller controls `address`, whether
+ * reading (Story 1.12's own read-only lookup) or writing (the
+ * correlation POST/PATCH's own write-authentication follow-on to the
+ * unauthenticated-write finding). Message-agnostic by design, the
+ * caller decides which challenge (read or write) to sign.
  */
-export async function signCorrelationReadChallenge(
+export async function signChallengeMessage(
   address: string,
   message: string
 ): Promise<string> {

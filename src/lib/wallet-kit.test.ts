@@ -106,16 +106,16 @@ describe('signDepositTransaction', () => {
   });
 });
 
-describe('signCorrelationReadChallenge', () => {
+describe('signChallengeMessage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('resolves with the signed message on success', async () => {
     signMessage.mockResolvedValue({ signedMessage: 'c2lnbmVk', signerAddress: 'GDEPOSITOR' });
-    const { signCorrelationReadChallenge } = await import('./wallet-kit');
+    const { signChallengeMessage } = await import('./wallet-kit');
 
-    const signature = await signCorrelationReadChallenge(
+    const signature = await signChallengeMessage(
       'GDEPOSITOR',
       'zephyroute:correlation-read:1758499200'
     );
@@ -129,10 +129,10 @@ describe('signCorrelationReadChallenge', () => {
 
   it('throws ChallengeSigningError, never a silent failure, when signing is cancelled or fails', async () => {
     signMessage.mockRejectedValue(new Error('User rejected the request'));
-    const { signCorrelationReadChallenge, ChallengeSigningError } = await import('./wallet-kit');
+    const { signChallengeMessage, ChallengeSigningError } = await import('./wallet-kit');
 
     await expect(
-      signCorrelationReadChallenge('GDEPOSITOR', 'zephyroute:correlation-read:1758499200')
+      signChallengeMessage('GDEPOSITOR', 'zephyroute:correlation-read:1758499200')
     ).rejects.toBeInstanceOf(ChallengeSigningError);
   });
 });
