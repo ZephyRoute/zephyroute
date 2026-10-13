@@ -13,7 +13,7 @@ import {
 import { inspectDepositTransaction, DepositXDRInspectionError } from '@/lib/deposit-xdr-inspector';
 import { requiredVaultAddress, DepositBuildError } from '@/lib/defindex-client';
 import { validateTransactionXDR, InvalidTransactionXDRError } from '@/lib/validation';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 import { checkRateLimit } from '@/lib/rate-limit';
 import type { SignUserActionChallengeRequest } from '@dfns/sdk';
 
@@ -132,10 +132,12 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json(toErrorEnvelope('SIGNING_TIMEOUT', cause.message), { status: 504 });
     }
     if (cause instanceof DfnsRequestError || cause instanceof DepositSubmissionError) {
+      logServerError('deposit.sign-complete', 'DEPOSIT_SIGNING_COMPLETE_FAILED', cause);
       return Response.json(toErrorEnvelope('DEPOSIT_SIGNING_COMPLETE_FAILED', cause.message), {
         status: 502,
       });
     }
+    logServerError('deposit.sign-complete', 'DEPOSIT_SIGNING_COMPLETE_FAILED', cause);
     return Response.json(
       toErrorEnvelope('DEPOSIT_SIGNING_COMPLETE_FAILED', 'Could not sign the deposit. Try again.'),
       { status: 500 }

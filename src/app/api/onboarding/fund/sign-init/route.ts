@@ -1,5 +1,5 @@
 import { initWalletSignature, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 interface SignInitBody {
@@ -51,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     if (cause instanceof DfnsRequestError) {
       return Response.json(toErrorEnvelope('SIGNING_INIT_FAILED', cause.message), { status: 502 });
     }
+    logServerError('onboarding.fund.sign-init', 'SIGNING_INIT_FAILED', cause);
     return Response.json(
       toErrorEnvelope('SIGNING_INIT_FAILED', 'Could not start signing. Try again.'),
       { status: 500 }

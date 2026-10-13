@@ -1,5 +1,5 @@
 import { computeTractionMetrics, TractionMetricsError } from '@/lib/traction-metrics';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 /**
@@ -28,6 +28,7 @@ export async function GET(request: Request): Promise<Response> {
         status: 502,
       });
     }
+    logServerError('traction-metrics', 'TRACTION_METRICS_FAILED', cause);
     return Response.json(
       toErrorEnvelope('TRACTION_METRICS_FAILED', 'Could not compute traction metrics.'),
       { status: 500 }

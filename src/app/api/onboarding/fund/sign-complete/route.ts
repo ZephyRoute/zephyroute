@@ -11,7 +11,7 @@ import {
   attachSignatureAndSubmit,
   OnboardingTransactionError,
 } from '@/lib/onboarding-transaction';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 import { checkRateLimit } from '@/lib/rate-limit';
 import type { SignUserActionChallengeRequest } from '@dfns/sdk';
 
@@ -156,10 +156,12 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json(toErrorEnvelope('SIGNING_TIMEOUT', cause.message), { status: 504 });
     }
     if (cause instanceof DfnsRequestError || cause instanceof OnboardingTransactionError) {
+      logServerError('onboarding.fund.sign-complete', 'SIGNING_COMPLETE_FAILED', cause);
       return Response.json(toErrorEnvelope('SIGNING_COMPLETE_FAILED', cause.message), {
         status: 502,
       });
     }
+    logServerError('onboarding.fund.sign-complete', 'SIGNING_COMPLETE_FAILED', cause);
     return Response.json(
       toErrorEnvelope('SIGNING_COMPLETE_FAILED', 'Could not complete account setup. Try again.'),
       { status: 500 }

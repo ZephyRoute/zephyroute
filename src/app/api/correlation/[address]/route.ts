@@ -2,7 +2,7 @@ import { verifyCorrelationReadProof, InvalidProofError } from '@/lib/auth-nonce'
 import { getDepositorVaultBalance, requiredVaultAddress, DepositBuildError } from '@/lib/defindex-client';
 import { getRedisClient } from '@/lib/redis';
 import type { CorrelationRecord } from '@/lib/validation';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 type CorrelationStatusResponse =
@@ -98,6 +98,7 @@ export async function GET(
     }
   } catch (cause) {
     if (!(cause instanceof DepositBuildError)) {
+      logServerError('correlation.[address]', 'CORRELATION_STATUS_QUERY_FAILED', cause);
       return Response.json(
         toErrorEnvelope('CORRELATION_STATUS_QUERY_FAILED', 'Could not check your account. Try again.'),
         { status: 502 }

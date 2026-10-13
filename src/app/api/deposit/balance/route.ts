@@ -1,5 +1,5 @@
 import { getDepositorVaultBalance, VaultBalanceQueryError } from '@/lib/defindex-client';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 /**
@@ -38,6 +38,7 @@ export async function GET(request: Request): Promise<Response> {
         status: 502,
       });
     }
+    logServerError('deposit.balance', 'VAULT_BALANCE_QUERY_FAILED', cause);
     return Response.json(
       toErrorEnvelope('VAULT_BALANCE_QUERY_FAILED', 'Could not read your vault balance.'),
       { status: 500 }
