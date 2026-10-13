@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { axe } from 'jest-axe';
 
 const computeTractionMetrics = vi.fn();
 
@@ -55,5 +56,21 @@ describe('MetricsPage', () => {
 
     expect(screen.getAllByText('Not available right now')).toHaveLength(2);
     expect(screen.getByRole('status')).toHaveTextContent('could not be read just now');
+  });
+
+  it('has no automatically detectable accessibility violations (Issue #58)', async () => {
+    computeTractionMetrics.mockResolvedValue({
+      cumulativeAttributableVolume: '99690000',
+      netNewTVL: '49690000',
+      uniqueFundedAddresses: 3,
+      recurrenceRate7d: 0.25,
+      recurrenceRate30d: 0.5,
+    });
+
+    const element = await MetricsPage();
+    const { container } = render(element);
+
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });

@@ -5,7 +5,8 @@ import {
   CorrelationRecordNotFoundError,
 } from '@/lib/validation';
 import { verifyCorrelationWriteProof, InvalidProofError } from '@/lib/auth-nonce';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 /**
  * `writeCorrelationRecord` carries the Upstash Redis REST token, a
@@ -43,6 +44,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const rawBody = body as Record<string, unknown>;
+  if (typeof rawBody.stellarAddress === 'string' && !(await checkRateLimit(rawBody.stellarAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
+    );
+  }
+
   const proofError = verifyWriteProof(rawBody);
   if (proofError) return proofError;
 
@@ -63,6 +71,7 @@ export async function POST(request: Request): Promise<Response> {
     // Rule #9: a failed cache write is never treated as a failed
     // settlement by the caller, but it must still be reported here,
     // never swallowed silently at this layer.
+    logServerError('correlation.POST', 'CORRELATION_WRITE_FAILED', cause);
     return Response.json(
       toErrorEnvelope('CORRELATION_WRITE_FAILED', 'Could not record this deposit. Try again.'),
       { status: 502 }
@@ -152,6 +161,13 @@ export async function PATCH(request: Request): Promise<Response> {
     );
   }
 
+  if (!(await checkRateLimit(body.stellarAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
+    );
+  }
+
   const proofError = verifyWriteProof(body);
   if (proofError) return proofError;
 
@@ -173,6 +189,7 @@ export async function PATCH(request: Request): Promise<Response> {
         status: 400,
       });
     }
+    logServerError('correlation.PATCH', 'CORRELATION_WRITE_FAILED', cause);
     return Response.json(
       toErrorEnvelope('CORRELATION_WRITE_FAILED', 'Could not record this deposit. Try again.'),
       { status: 502 }

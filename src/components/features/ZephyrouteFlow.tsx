@@ -17,6 +17,7 @@ import { useDepositSigning } from '@/lib/hooks/useDepositSigning';
 import { useCorrelationResume } from '@/lib/hooks/useCorrelationResume';
 import { getOrCreateCorrelationWriteProof } from '@/lib/correlation-write-proof';
 import { getAssetBalance } from '@/lib/horizon';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 import { SUPPORTED_ROUTES } from '@/lib/routes';
 import type { FlowStage } from '@/lib/types';
 
@@ -112,7 +113,7 @@ export function ZephyrouteFlow() {
           address,
           identity.signMessage
         );
-        await fetch('/api/correlation', {
+        await fetchWithTimeout('/api/correlation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

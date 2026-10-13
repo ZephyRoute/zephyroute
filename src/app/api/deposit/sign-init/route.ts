@@ -1,5 +1,6 @@
 import { initWalletSignature, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 interface SignInitBody {
   walletId: string;
@@ -40,6 +41,13 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (!(await checkRateLimit(body.walletId))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
+    );
+  }
+
   try {
     const challenge = await initWalletSignature(body.walletId, body.hashHex);
     return Response.json(challenge);
@@ -55,6 +63,7 @@ export async function POST(request: Request): Promise<Response> {
         status: 502,
       });
     }
+    logServerError('deposit.sign-init', 'DEPOSIT_SIGNING_INIT_FAILED', cause);
     return Response.json(
       toErrorEnvelope('DEPOSIT_SIGNING_INIT_FAILED', 'Could not start signing. Try again.'),
       { status: 500 }
