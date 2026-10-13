@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { toErrorEnvelope } from './error-envelope';
+import { describe, expect, it, vi } from 'vitest';
+import { toErrorEnvelope, logServerError } from './error-envelope';
 
 describe('toErrorEnvelope', () => {
   it('produces only a code and message, nothing else', () => {
@@ -21,5 +21,17 @@ describe('toErrorEnvelope', () => {
     const serialized = JSON.stringify(envelope);
     expect(serialized).not.toContain(fakeStackTrace);
     expect(serialized).not.toContain('at buildDeposit');
+  });
+});
+
+describe('logServerError (Issue #61)', () => {
+  it('logs the route, code, and cause server-side, so a caught error no longer vanishes', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const cause = new Error('upstream timed out');
+
+    logServerError('quote', 'QUOTE_REQUEST_FAILED', cause);
+
+    expect(consoleError).toHaveBeenCalledWith('[quote] QUOTE_REQUEST_FAILED', cause);
+    consoleError.mockRestore();
   });
 });

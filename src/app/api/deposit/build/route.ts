@@ -1,6 +1,7 @@
 import { buildDepositTransaction, DepositBuildError } from '@/lib/defindex-client';
 import { InvalidTransactionXDRError } from '@/lib/validation';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 interface BuildDepositRequestBody {
   depositorAddress: string;
@@ -42,6 +43,13 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (!(await checkRateLimit(body.depositorAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
+    );
+  }
+
   try {
     const { xdr, vaultAddress } = await buildDepositTransaction(
       body.depositorAddress,
@@ -51,6 +59,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ xdr, vaultAddress });
   } catch (cause) {
     if (cause instanceof InvalidTransactionXDRError) {
+      logServerError('deposit.build', 'INVALID_DEPOSIT_XDR', cause);
       return Response.json(
         toErrorEnvelope(
           'INVALID_DEPOSIT_XDR',
@@ -64,6 +73,7 @@ export async function POST(request: Request): Promise<Response> {
         status: 502,
       });
     }
+    logServerError('deposit.build', 'DEPOSIT_BUILD_FAILED', cause);
     return Response.json(
       toErrorEnvelope('DEPOSIT_BUILD_FAILED', 'Could not prepare the deposit. Try again.'),
       { status: 500 }

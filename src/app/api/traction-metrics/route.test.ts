@@ -26,7 +26,7 @@ describe('GET /api/traction-metrics', () => {
     };
     computeTractionMetrics.mockResolvedValue(metrics);
 
-    const response = await GET();
+    const response = await GET(new Request('https://zephyroute.app/api/traction-metrics'));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(metrics);
@@ -36,7 +36,7 @@ describe('GET /api/traction-metrics', () => {
     const { TractionMetricsError } = await import('@/lib/traction-metrics');
     computeTractionMetrics.mockRejectedValue(new TractionMetricsError('ECONNREFUSED at socket'));
 
-    const response = await GET();
+    const response = await GET(new Request('https://zephyroute.app/api/traction-metrics'));
 
     expect(response.status).toBe(502);
     const payload = await response.json();

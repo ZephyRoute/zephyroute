@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { signCorrelationReadChallenge, ChallengeSigningError } from '@/lib/wallet-kit';
 import { buildCorrelationReadChallenge } from '@/lib/auth-nonce';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 
 export type CorrelationResumeStatus =
   | 'idle'
@@ -63,7 +64,7 @@ export function useCorrelationResume(): UseCorrelationResumeResult {
 
     try {
       const params = new URLSearchParams({ message, signature });
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `/api/correlation/${encodeURIComponent(address)}?${params.toString()}`
       );
       const payload = await response.json();

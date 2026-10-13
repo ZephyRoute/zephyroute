@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { axe } from 'jest-axe';
 
 const noop = vi.fn();
 const useWalletMock = vi.fn();
@@ -120,5 +121,35 @@ describe('ZephyrouteFlow', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Connected: GDFNSNEWACCOUNT');
     expect(screen.queryByRole('button', { name: 'Create my Stellar account' })).not.toBeInTheDocument();
+  });
+
+  it('has no automatically detectable accessibility violations before any wallet is connected (Issue #58)', async () => {
+    useWalletMock.mockReturnValue({
+      address: null,
+      status: 'disconnected',
+      errorMessage: null,
+      connect: noop,
+      disconnect: noop,
+    });
+
+    const { container } = render(<ZephyrouteFlow />);
+    const results = await axe(container);
+
+    expect(results).toHaveNoViolations();
+  });
+
+  it('has no automatically detectable accessibility violations once connected (Issue #58)', async () => {
+    useWalletMock.mockReturnValue({
+      address: 'GCONNECTED',
+      status: 'connected',
+      errorMessage: null,
+      connect: noop,
+      disconnect: noop,
+    });
+
+    const { container } = render(<ZephyrouteFlow />);
+    const results = await axe(container);
+
+    expect(results).toHaveNoViolations();
   });
 });
