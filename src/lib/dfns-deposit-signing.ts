@@ -1,9 +1,10 @@
 import { signWithPasskey, PasskeyError } from '@/lib/dfns-passkey';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 
 export class DfnsDepositSigningError extends Error {}
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
