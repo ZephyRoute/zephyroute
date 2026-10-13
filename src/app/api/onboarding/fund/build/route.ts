@@ -7,7 +7,8 @@ import {
   consumeRegistrationToken,
   RegistrationTokenError,
 } from '@/lib/onboarding-registration-token';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 interface FundBuildBody {
   stellarAddress: string;
@@ -61,14 +62,26 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (!(await checkRateLimit(body.stellarAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
+    );
+  }
+
   try {
     await consumeRegistrationToken(body.registrationToken, body.stellarAddress);
   } catch (cause) {
     if (cause instanceof RegistrationTokenError) {
+      // A real security signal, not just a failed request: someone
+      // presented an invalid/expired/already-used token at the one
+      // route that touches the treasury's spend-capable key.
+      logServerError('onboarding.fund.build', 'REGISTRATION_TOKEN_INVALID', cause);
       return Response.json(toErrorEnvelope('REGISTRATION_TOKEN_INVALID', cause.message), {
         status: 403,
       });
     }
+    logServerError('onboarding.fund.build', 'ONBOARDING_BUILD_FAILED', cause);
     return Response.json(
       toErrorEnvelope('ONBOARDING_BUILD_FAILED', 'Could not verify your registration. Try again.'),
       { status: 500 }
@@ -89,10 +102,12 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
     if (cause instanceof OnboardingTransactionError) {
+      logServerError('onboarding.fund.build', 'ONBOARDING_BUILD_FAILED', cause);
       return Response.json(toErrorEnvelope('ONBOARDING_BUILD_FAILED', cause.message), {
         status: 502,
       });
     }
+    logServerError('onboarding.fund.build', 'ONBOARDING_BUILD_FAILED', cause);
     return Response.json(
       toErrorEnvelope('ONBOARDING_BUILD_FAILED', 'Could not prepare your account. Try again.'),
       { status: 500 }

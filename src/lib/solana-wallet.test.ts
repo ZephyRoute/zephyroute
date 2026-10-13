@@ -41,13 +41,14 @@ function makeSolanaWallet(overrides: Partial<Wallet['features']> = {}): Wallet {
 
 describe('solana-wallet', () => {
   describe('connectSolanaWallet', () => {
-    it('connects via the Wallet Standard and resolves with the authorized account, never a private key', async () => {
+    it('connects via the Wallet Standard and resolves with the specific wallet and its authorized account, never a private key', async () => {
       const wallet = makeSolanaWallet();
       get.mockReturnValue([wallet]);
 
-      const account = await connectSolanaWallet();
+      const connected = await connectSolanaWallet();
 
-      expect(account).toEqual(ACCOUNT);
+      expect(connected.account).toEqual(ACCOUNT);
+      expect(connected.wallet).toBe(wallet);
       expect(
         (wallet.features[StandardConnect] as { connect: ReturnType<typeof vi.fn> }).connect
       ).toHaveBeenCalledOnce();
@@ -69,11 +70,10 @@ describe('solana-wallet', () => {
   });
 
   describe('signAndSendSolanaTransaction', () => {
-    it('signs and sends via the wallet, returning the signature as base58, not raw bytes', async () => {
+    it('signs and sends via the given wallet, returning the signature as base58, not raw bytes', async () => {
       const wallet = makeSolanaWallet();
-      get.mockReturnValue([wallet]);
 
-      const signature = await signAndSendSolanaTransaction(ACCOUNT, new Uint8Array([9, 9, 9]));
+      const signature = await signAndSendSolanaTransaction(wallet, ACCOUNT, new Uint8Array([9, 9, 9]));
 
       expect(typeof signature).toBe('string');
       expect(signature.length).toBeGreaterThan(0);
@@ -92,11 +92,33 @@ describe('solana-wallet', () => {
       (
         wallet.features[SolanaSignAndSendTransaction] as { signAndSendTransaction: ReturnType<typeof vi.fn> }
       ).signAndSendTransaction.mockRejectedValue(new Error('User rejected'));
-      get.mockReturnValue([wallet]);
 
       await expect(
-        signAndSendSolanaTransaction(ACCOUNT, new Uint8Array([9, 9, 9]))
+        signAndSendSolanaTransaction(wallet, ACCOUNT, new Uint8Array([9, 9, 9]))
       ).rejects.toBeInstanceOf(SolanaWalletError);
+    });
+
+    it('signs with the exact connected wallet, never re-resolving the registry, closing the multi-extension race', async () => {
+      const connectedWallet = makeSolanaWallet();
+      get.mockReturnValue([connectedWallet]);
+      const { wallet } = await connectSolanaWallet();
+
+      // A second extension has since registered and now sorts first,
+      // simulating the real timing gap (a network call for building
+      // the swap transaction) between connecting and signing.
+      const laterRegisteredWallet = makeSolanaWallet();
+      get.mockReturnValue([laterRegisteredWallet, connectedWallet]);
+
+      await signAndSendSolanaTransaction(wallet, ACCOUNT, new Uint8Array([9, 9, 9]));
+
+      const connectedFeature = connectedWallet.features[SolanaSignAndSendTransaction] as {
+        signAndSendTransaction: ReturnType<typeof vi.fn>;
+      };
+      const laterFeature = laterRegisteredWallet.features[SolanaSignAndSendTransaction] as {
+        signAndSendTransaction: ReturnType<typeof vi.fn>;
+      };
+      expect(connectedFeature.signAndSendTransaction).toHaveBeenCalledOnce();
+      expect(laterFeature.signAndSendTransaction).not.toHaveBeenCalled();
     });
   });
 });

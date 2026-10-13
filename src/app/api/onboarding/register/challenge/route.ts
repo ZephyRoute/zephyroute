@@ -1,5 +1,6 @@
 import { startEndUserRegistration, DfnsConfigError, DfnsRequestError } from '@/lib/dfns-client';
-import { toErrorEnvelope } from '@/lib/error-envelope';
+import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 interface RegisterChallengeBody {
   email: string;
@@ -34,6 +35,13 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  if (!(await checkRateLimit(getClientIp(request)))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
+    );
+  }
+
   try {
     const challenge = await startEndUserRegistration(body.email, body.externalId);
     return Response.json(challenge);
@@ -49,6 +57,7 @@ export async function POST(request: Request): Promise<Response> {
         status: 502,
       });
     }
+    logServerError('onboarding.register.challenge', 'REGISTRATION_CHALLENGE_FAILED', cause);
     return Response.json(
       toErrorEnvelope('REGISTRATION_CHALLENGE_FAILED', 'Could not start account setup.'),
       { status: 500 }

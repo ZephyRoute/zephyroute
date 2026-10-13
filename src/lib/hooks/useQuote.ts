@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import type { QuoteResponse } from '@defuse-protocol/one-click-sdk-typescript';
 import type { RequestQuoteParams } from '@/lib/one-click-client';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 
 export type QuoteRequestState = 'idle' | 'loading' | 'ready' | 'rejected' | 'failed';
 
@@ -30,7 +31,7 @@ export function useQuote(): UseQuoteResult {
     setStatus('loading');
     setErrorMessage(null);
     try {
-      const response = await fetch('/api/quote', {
+      const response = await fetchWithTimeout('/api/quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
