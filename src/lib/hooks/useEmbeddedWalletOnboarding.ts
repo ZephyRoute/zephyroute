@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { createPasskeyCredential, signWithPasskey, PasskeyError } from '@/lib/dfns-passkey';
 import type { AssetIdentifier } from '@/lib/horizon';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 
 export type OnboardingStatus =
   | 'idle'
@@ -44,7 +45,7 @@ class OnboardingRequestError extends Error {
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

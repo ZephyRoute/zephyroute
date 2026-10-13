@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { axe } from 'jest-axe';
 
 vi.mock('@/components/features/ZephyrouteFlow', () => ({
   ZephyrouteFlow: () => <div data-testid="flow">flow</div>,
@@ -44,5 +45,13 @@ describe('EmbedPage', () => {
     render(element);
 
     expect(screen.getByTestId('flow')).toBeInTheDocument();
+  });
+
+  it('has no automatically detectable accessibility violations (Issue #58)', async () => {
+    const element = await EmbedPage({ searchParams: Promise.resolve({}) });
+    const { container } = render(element);
+
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });

@@ -8,6 +8,7 @@ import {
   RegistrationTokenError,
 } from '@/lib/onboarding-registration-token';
 import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 interface FundBuildBody {
   stellarAddress: string;
@@ -58,6 +59,13 @@ export async function POST(request: Request): Promise<Response> {
         'stellarAddress, assetCode, and registrationToken are required.'
       ),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(body.stellarAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 

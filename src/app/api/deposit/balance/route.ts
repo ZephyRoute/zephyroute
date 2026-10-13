@@ -1,5 +1,6 @@
 import { getDepositorVaultBalance, VaultBalanceQueryError } from '@/lib/defindex-client';
 import { toErrorEnvelope, logServerError } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 /**
  * `getDepositorVaultBalance` carries the DeFindex API key, same as
@@ -18,6 +19,13 @@ export async function GET(request: Request): Promise<Response> {
         'vaultAddress and depositorAddress query parameters are required.'
       ),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(depositorAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 
