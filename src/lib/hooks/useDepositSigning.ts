@@ -11,6 +11,7 @@ import {
 } from '@/lib/horizon';
 import { signDepositTransaction, DepositSigningError } from '@/lib/wallet-kit';
 import { signAndSubmitDepositWithDfns } from '@/lib/deposit-dfns-client-signing';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 
 export type DepositSigningStatus =
   | 'idle'
@@ -77,7 +78,7 @@ async function fetchVaultBalance(
   depositorAddress: string
 ): Promise<VaultBalance> {
   const params = new URLSearchParams({ vaultAddress, depositorAddress });
-  const response = await fetch(`/api/deposit/balance?${params.toString()}`);
+  const response = await fetchWithTimeout(`/api/deposit/balance?${params.toString()}`);
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload?.error?.message ?? 'Could not read your vault balance.');
@@ -131,7 +132,7 @@ export function useDepositSigning(): UseDepositSigningResult {
     let xdr: ValidatedTransactionXDR;
     let responseVaultAddress: string;
     try {
-      const response = await fetch('/api/deposit/build', {
+      const response = await fetchWithTimeout('/api/deposit/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -290,7 +291,7 @@ export function useDepositSigning(): UseDepositSigningResult {
         if (balance.dfTokens > baseline) {
           setDfTokens(balance.dfTokens);
           setStatus('completed');
-          fetch('/api/correlation', {
+          fetchWithTimeout('/api/correlation', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

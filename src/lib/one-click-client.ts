@@ -7,6 +7,7 @@ import {
   HistoryItem,
   type QuoteResponse,
 } from '@defuse-protocol/one-click-sdk-typescript';
+import { withTimeout } from '@/lib/fetch-with-timeout';
 
 OpenAPI.BASE = 'https://1click.chaindefuser.com';
 OpenAPI.TOKEN = () => Promise.resolve(process.env.ONECLICK_API_KEY ?? '');
@@ -60,7 +61,10 @@ function requiredIntegratorId(): string {
 export async function requestQuote(params: RequestQuoteParams): Promise<QuoteResponse> {
   const referral = requiredIntegratorId();
   try {
-    return await OneClickService.getQuote({
+    // Issue #56: the 1Click SDK exposes no timeout option of its own,
+    // and this isn't a plain `fetch()` call `fetchWithTimeout` could
+    // wrap directly, so the wait itself is bounded instead.
+    return await withTimeout(OneClickService.getQuote({
       dry: false,
       depositMode: QuoteRequest.depositMode.SIMPLE,
       swapType: QuoteRequest.swapType.EXACT_INPUT,
@@ -75,7 +79,7 @@ export async function requestQuote(params: RequestQuoteParams): Promise<QuoteRes
       recipientType: QuoteRequest.recipientType.DESTINATION_CHAIN,
       deadline: params.deadline,
       referral,
-    });
+    }));
   } catch (cause) {
     if (cause instanceof ApiError) {
       // AC #5: a down/unsupported route is rejected explicitly here,
@@ -127,11 +131,8 @@ export async function findAttributedSettlement(
 ): Promise<AttributedSettlement | null> {
   let history;
   try {
-    history = await AccountService.getHistory(
-      undefined,
-      undefined,
-      [HistoryItem.status.SUCCESS],
-      100
+    history = await withTimeout(
+      AccountService.getHistory(undefined, undefined, [HistoryItem.status.SUCCESS], 100)
     );
   } catch (cause) {
     throw new HistoryQueryError('Could not reach the settlement history service. Try again.', {

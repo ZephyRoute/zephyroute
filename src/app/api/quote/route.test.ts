@@ -1,12 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { requestQuote } = vi.hoisted(() => ({ requestQuote: vi.fn() }));
+const { requestQuote, checkRateLimit } = vi.hoisted(() => ({
+  requestQuote: vi.fn(),
+  checkRateLimit: vi.fn(),
+}));
 
 vi.mock('@/lib/one-click-client', async () => {
   const actual = await vi.importActual<typeof import('@/lib/one-click-client')>(
     '@/lib/one-click-client'
   );
   return { ...actual, requestQuote };
+});
+vi.mock('@/lib/rate-limit', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/rate-limit')>('@/lib/rate-limit');
+  return { ...actual, checkRateLimit };
 });
 
 const { POST } = await import('./route');
@@ -31,6 +38,18 @@ function postRequest(body: unknown): Request {
 describe('POST /api/quote', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    checkRateLimit.mockResolvedValue(true);
+  });
+
+  it('rejects a request over the rate limit with a 429, never reaching requestQuote', async () => {
+    checkRateLimit.mockResolvedValue(false);
+
+    const response = await POST(postRequest(VALID_BODY));
+
+    expect(response.status).toBe(429);
+    const payload = await response.json();
+    expect(payload.error.code).toBe('RATE_LIMITED');
+    expect(requestQuote).not.toHaveBeenCalled();
   });
 
   it('rejects malformed JSON with a 400 error envelope, never reaching requestQuote', async () => {
