@@ -5,6 +5,7 @@ import {
   CorrelationRecordNotFoundError,
 } from '@/lib/validation';
 import { toErrorEnvelope } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 /**
  * `writeCorrelationRecord` carries the Upstash Redis REST token, a
@@ -27,6 +28,14 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       toErrorEnvelope('INVALID_REQUEST_BODY', 'Request body must be an object.'),
       { status: 400 }
+    );
+  }
+
+  const stellarAddress = (body as Record<string, unknown>).stellarAddress;
+  if (typeof stellarAddress === 'string' && !(await checkRateLimit(stellarAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 
@@ -86,6 +95,13 @@ export async function PATCH(request: Request): Promise<Response> {
     return Response.json(
       toErrorEnvelope('INVALID_REQUEST_BODY', 'Missing or malformed deposit update fields.'),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(body.stellarAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 

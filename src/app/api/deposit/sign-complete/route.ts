@@ -11,6 +11,7 @@ import {
   DepositSubmissionError,
 } from '@/lib/deposit-dfns-signing';
 import { toErrorEnvelope } from '@/lib/error-envelope';
+import { checkRateLimit } from '@/lib/rate-limit';
 import type { SignUserActionChallengeRequest } from '@dfns/sdk';
 
 interface SignCompleteBody {
@@ -62,6 +63,13 @@ export async function POST(request: Request): Promise<Response> {
         'walletId, hashHex, signedChallenge, unsignedXdr, and depositorAddress are required.'
       ),
       { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(body.depositorAddress))) {
+    return Response.json(
+      toErrorEnvelope('RATE_LIMITED', 'Too many requests. Try again shortly.'),
+      { status: 429 }
     );
   }
 
