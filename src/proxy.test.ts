@@ -24,6 +24,28 @@ describe('proxy CSP', () => {
     expect(csp).not.toContain('unsafe-eval');
   });
 
+  it('sets a fresh, unique CSP nonce per request, per the security review finding', () => {
+    const firstCsp = proxy(new NextRequest('https://zephyroute.app/')).headers.get(
+      'Content-Security-Policy'
+    );
+    const secondCsp = proxy(new NextRequest('https://zephyroute.app/')).headers.get(
+      'Content-Security-Policy'
+    );
+
+    const firstNonce = firstCsp?.match(/'nonce-([^']+)'/)?.[1];
+    const secondNonce = secondCsp?.match(/'nonce-([^']+)'/)?.[1];
+
+    expect(firstNonce).toBeTruthy();
+    expect(secondNonce).toBeTruthy();
+    expect(firstNonce).not.toBe(secondNonce);
+  });
+
+  it('includes strict-dynamic alongside the nonce, so Next.js can trust its own chunk-loaded scripts', () => {
+    const response = proxy(new NextRequest('https://zephyroute.app/'));
+
+    expect(response.headers.get('Content-Security-Policy')).toContain("'strict-dynamic'");
+  });
+
   it('sets frame-ancestors none on non-embed routes, never embeddable anywhere (Story 4.2)', () => {
     const request = new NextRequest('https://zephyroute.app/');
     const response = proxy(request);
