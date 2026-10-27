@@ -12,10 +12,14 @@ let client: Redis | null = null;
 export function getRedisClient(): Redis {
   if (client) return client;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  // KV_REST_API_* are the names the Vercel Marketplace Upstash
+  // integration injects; UPSTASH_REDIS_REST_* cover a manual setup.
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) {
-    throw new Error('Upstash Redis is not configured (UPSTASH_REDIS_REST_URL/TOKEN missing).');
+    throw new Error(
+      'Upstash Redis is not configured (UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN missing).'
+    );
   }
 
   client = new Redis({ url, token });
