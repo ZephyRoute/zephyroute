@@ -31,9 +31,14 @@ export interface RequestQuoteParams {
  * endpoint, carrying Zephyroute's registered integrator ID on every
  * request (FR2, Story 1.6). EXACT_INPUT/ORIGIN_CHAIN/DESTINATION_CHAIN
  * mirrors the standard "swap from my origin wallet, land directly in my
- * own destination-chain account" shape this product is built around,
- * the user's funds are never routed through a NEAR Intents or
- * Confidential Intents account.
+ * own destination-chain account" shape this product is built around.
+ *
+ * Since 2026-10-27, 1Click settles every swap on the NEAR Private Shard
+ * (confidential only, per NEAR Intents' partner notice). Request and
+ * response shapes are unchanged; `nearTxHashes` now lists only the
+ * public shield and unshield, never the swap itself. NFR4 auditability
+ * is unaffected: it relies on the origin-chain deposit, Horizon, and
+ * 1Click integrator records, never on a NEAR swap hash.
  *
  * Stellar's deposit-mode quirk (the 1Click API's own type declares some
  * chains, for example Stellar, require `depositMode: MEMO` on their
